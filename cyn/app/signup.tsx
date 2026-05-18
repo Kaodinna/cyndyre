@@ -39,6 +39,7 @@ import * as Location from "expo-location";
 import {
   getServiceCategories,
   signUpServiceProvider,
+  signUpRider,
 } from "@/services/api/request";
 import { Category } from "@/types/type";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -58,6 +59,39 @@ export default function SignupScreen() {
   const [state, setState] = useState(1);
   const [serviceCategories, setServiceCategories] = useState<Category[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
+
+  type RiderFormData = {
+    fullName: string;
+    email: string;
+    password: string;
+    confirmPassword: string;
+    phoneNumber: string;
+    vehicleType: string;
+    vehiclePlate: string;
+    address: string;
+    city: string;
+    state: string;
+    latitude: number;
+    longitude: number;
+  };
+  const [riderFormData, setRiderFormData] = useState<RiderFormData>({
+    fullName: "",
+    email: "",
+    password: "",
+    confirmPassword: "",
+    phoneNumber: "",
+    vehicleType: "",
+    vehiclePlate: "",
+    address: "",
+    city: "",
+    state: "",
+    latitude: 0,
+    longitude: 0,
+  });
+  const [riderStep, setRiderStep] = useState(1);
+  type RiderFormErrors = Partial<Record<keyof RiderFormData, string>>;
+  const [riderErrors, setRiderErrors] = useState<RiderFormErrors>({});
+  const [riderApiError, setRiderApiError] = useState<string | null>(null);
   type FormErrors = Partial<Record<keyof FormData, string>>;
   type FormData = {
     fullName: string;
@@ -264,6 +298,93 @@ export default function SignupScreen() {
       [field]: value,
     }));
   };
+
+  const handleRiderInputChange = (field: string, value: any) => {
+    setRiderFormData((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const validateRiderStep = (step: number): boolean => {
+    let valid = true;
+    const newErrors: RiderFormErrors = { ...riderErrors };
+
+    if (step === 1) {
+      if (!riderFormData.fullName.trim()) {
+        newErrors.fullName = "Full Name is required";
+        valid = false;
+      } else newErrors.fullName = "";
+
+      if (!riderFormData.email.trim()) {
+        newErrors.email = "Email is required";
+        valid = false;
+      } else newErrors.email = "";
+
+      if (!riderFormData.password.trim()) {
+        newErrors.password = "Password is required";
+        valid = false;
+      } else newErrors.password = "";
+
+      if (!riderFormData.confirmPassword.trim()) {
+        newErrors.confirmPassword = "Confirm Password is required";
+        valid = false;
+      } else if (riderFormData.confirmPassword !== riderFormData.password) {
+        newErrors.confirmPassword = "Passwords do not match";
+        valid = false;
+      } else newErrors.confirmPassword = "";
+
+      if (!riderFormData.phoneNumber.trim()) {
+        newErrors.phoneNumber = "Phone number is required";
+        valid = false;
+      } else newErrors.phoneNumber = "";
+    }
+
+    if (step === 2) {
+      if (!riderFormData.vehicleType.trim()) {
+        newErrors.vehicleType = "Vehicle type is required";
+        valid = false;
+      } else newErrors.vehicleType = "";
+
+      if (!riderFormData.vehiclePlate.trim()) {
+        newErrors.vehiclePlate = "Vehicle plate is required";
+        valid = false;
+      } else newErrors.vehiclePlate = "";
+
+      if (!riderFormData.address.trim()) {
+        newErrors.address = "Address is required";
+        valid = false;
+      } else newErrors.address = "";
+
+      if (!riderFormData.city.trim()) {
+        newErrors.city = "City is required";
+        valid = false;
+      } else newErrors.city = "";
+
+      if (!riderFormData.state.trim()) {
+        newErrors.state = "State is required";
+        valid = false;
+      } else newErrors.state = "";
+    }
+
+    setRiderErrors(newErrors);
+    return valid;
+  };
+
+  const handleRiderSignup = async () => {
+    if (!validateRiderStep(riderStep)) return;
+    setLoading(true);
+    try {
+      const { confirmPassword, ...payload } = riderFormData;
+      const response = await signUpRider(payload);
+      if (response.success) {
+        router.push("/login");
+      } else {
+        setRiderApiError(response.message || "Failed to sign up. Please try again.");
+      }
+    } catch (err: any) {
+      setRiderApiError(err.message || "Something went wrong. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
   useEffect(() => {
     const loadVendorData = async () => {
       try {
@@ -467,14 +588,14 @@ export default function SignupScreen() {
               <Image source={logo} />
             </View> */}
           </View>
-          <View className="flex flex-row items-center gap-[16px] px-4 mt-4 pb-4">
+          <View className="flex flex-row items-center gap-[8px] px-4 mt-4 pb-4">
             <Pressable
               onPress={() => setRole("customer")}
               className={`${role === "customer" ? "border-[#F6339A] bg-[#FDF2F8]" : "border-[#E5E7EB]"} h-[50px] border-[1.24px] flex-1 rounded-[10px] flex justify-center items-center`}
             >
               <Text
                 style={{ fontFamily: "Manrope_400Regular" }}
-                className={`text-[#4A5565] text-[16px] ${role === "customer" ? "text-[#C6005C]" : "text-[#4A5565]"}`}
+                className={`text-[13px] ${role === "customer" ? "text-[#C6005C]" : "text-[#4A5565]"}`}
               >
                 Customer
               </Text>
@@ -484,16 +605,32 @@ export default function SignupScreen() {
               className={`${role === "businessOwner" ? "border-[#F6339A] bg-[#FDF2F8]" : "border-[#E5E7EB]"} h-[50px] border-[1px] flex-1 rounded-[10px] flex justify-center items-center`}
             >
               <Text
-                className={`text-[#4A5565] text-[16px] ${role === "businessOwner" ? "text-[#C6005C]" : "text-[#4A5565]"}`}
+                className={`text-[13px] ${role === "businessOwner" ? "text-[#C6005C]" : "text-[#4A5565]"}`}
                 style={{ fontFamily: "Manrope_400Regular" }}
               >
-                Service Provider
+                Provider
+              </Text>
+            </Pressable>
+            <Pressable
+              onPress={() => setRole("rider")}
+              className={`${role === "rider" ? "border-[#F6339A] bg-[#FDF2F8]" : "border-[#E5E7EB]"} h-[50px] border-[1px] flex-1 rounded-[10px] flex justify-center items-center`}
+            >
+              <Text
+                className={`text-[13px] ${role === "rider" ? "text-[#C6005C]" : "text-[#4A5565]"}`}
+                style={{ fontFamily: "Manrope_400Regular" }}
+              >
+                Rider
               </Text>
             </Pressable>
           </View>
           {role === "businessOwner" && (
             <View className={`px-4 ${state > 1 ? "pb-4" : "pb-0"}`}>
               <ProgressBar step={state} total={4} />
+            </View>
+          )}
+          {role === "rider" && (
+            <View className="px-4 pb-4">
+              <ProgressBar step={riderStep} total={2} />
             </View>
           )}
           {role === "customer" ||
