@@ -171,7 +171,8 @@ export default function AvailabilityScreen() {
               endTime: endStr,
               isAvailable: true,
             });
-            const newId = result?.data?._id ?? result?.data?.id ?? result?._id ?? result?.id;
+            const r = result as any;
+            const newId = r?.data?._id ?? r?.data?.id ?? r?._id ?? r?.id;
             if (newId) {
               setDaySlots((prev) => ({
                 ...prev,
@@ -207,7 +208,8 @@ export default function AvailabilityScreen() {
         isAvailable: false,
         specificDate: dateStr,
       });
-      const id = result?.data?._id ?? result?.data?.id ?? result?._id ?? result?.id;
+      const r2 = result as any;
+      const id = r2?.data?._id ?? r2?.data?.id ?? r2?._id ?? r2?.id;
       if (id) {
         setUnavailableDates((prev) => [
           ...prev,
