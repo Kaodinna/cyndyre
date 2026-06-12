@@ -23,7 +23,10 @@ import {
   getProducts,
   getServiceProvider,
   getServicesByServiceProviderId,
+  getAvailableOrders,
+  claimOrder,
 } from "@/services/api/request";
+import { Alert } from "react-native";
 import {
   Booking,
   ProductItem,
@@ -297,6 +300,106 @@ export default function Tab() {
   const openDrawer = () => {
     navigation.dispatch(DrawerActions.openDrawer());
   };
+
+  // ─── Rider available-orders tab ─────────────────────────────────────────
+  const [availableOrders, setAvailableOrders] = useState<any[]>([]);
+  const [availableLoading, setAvailableLoading] = useState(false);
+  const [claimingId, setClaimingId] = useState<string | null>(null);
+
+  const fetchAvailable = useCallback(async () => {
+    if (user?.role !== "rider") return;
+    try {
+      setAvailableLoading(true);
+      const res = await getAvailableOrders();
+      setAvailableOrders((res as any).data ?? res ?? []);
+    } catch { setAvailableOrders([]); }
+    finally { setAvailableLoading(false); }
+  }, [user?.role]);
+
+  useEffect(() => { fetchAvailable(); }, [fetchAvailable]);
+
+  const handleClaim = async (orderId: string) => {
+    try {
+      setClaimingId(orderId);
+      await claimOrder(orderId);
+      Alert.alert("Claimed!", "Order has been assigned to you and marked as shipped.");
+      fetchAvailable();
+    } catch (e: any) {
+      Alert.alert("Error", e?.response?.data?.message ?? "Could not claim order.");
+    } finally { setClaimingId(null); }
+  };
+
+  if (user?.role === "rider") {
+    return (
+      <SafeAreaView className="flex-1 bg-[#F8F8FF]" style={{ paddingTop: Platform.OS === "android" ? 10 : 0 }}>
+        <View className="px-4 py-3 border-b border-[#F3F3F3]">
+          <Text className="text-[20px] text-[#050404]" style={{ fontFamily: "Manrope_700Bold" }}>Available Orders</Text>
+          <Text className="text-[12px] text-[#585757] mt-1" style={{ fontFamily: "Manrope_400Regular" }}>Packaged orders ready for pickup</Text>
+        </View>
+        {availableLoading ? (
+          <View className="flex-1 justify-center items-center"><ActivityIndicator size="large" color="#FF6EC7" /></View>
+        ) : (
+          <FlatList
+            data={availableOrders}
+            keyExtractor={(item) => item.id ?? item._id}
+            contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: 24 }}
+            onRefresh={fetchAvailable}
+            refreshing={availableLoading}
+            ListEmptyComponent={
+              <View className="flex-1 items-center justify-center pt-20">
+                <MaterialCommunityIcons name="package-variant" size={48} color="#FFD2EE" />
+                <Text className="text-[14px] text-[#585757] mt-3" style={{ fontFamily: "Manrope_500Medium" }}>No orders available right now</Text>
+              </View>
+            }
+            renderItem={({ item }) => {
+              const images = item.cart?.map((c: any) => c.product?.images?.[0] ?? c.product?.coverImage).filter(Boolean) ?? [];
+              return (
+                <View className="bg-white rounded-[12px] mb-3 overflow-hidden" style={{ shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.08, shadowRadius: 4, elevation: 3 }}>
+                  <View className="px-4 pt-4 pb-2">
+                    <Text className="text-[13px] text-[#050404]" style={{ fontFamily: "Manrope_700Bold" }}>Order {item.orderId}</Text>
+                    <Text className="text-[11px] text-[#585757] mt-[2px]" style={{ fontFamily: "Manrope_400Regular" }}>{item.cart?.length ?? 0} item{(item.cart?.length ?? 0) !== 1 ? "s" : ""}</Text>
+                  </View>
+                  {images.length > 0 && (
+                    <View className="flex flex-row gap-[6px] px-4 pb-3">
+                      {images.slice(0, 4).map((uri: string, idx: number) => (
+                        <View key={idx} className="w-[48px] h-[48px] rounded-[8px] overflow-hidden bg-[#F3F3F3]">
+                          <Image source={{ uri }} style={{ width: "100%", height: "100%" }} resizeMode="cover" />
+                        </View>
+                      ))}
+                    </View>
+                  )}
+                  {item.deliveryAddress ? (
+                    <View className="flex flex-row items-start gap-2 px-4 pb-3">
+                      <Ionicons name="location-outline" size={14} color="#10B981" style={{ marginTop: 2 }} />
+                      <Text className="text-[12px] text-[#374151] flex-1" style={{ fontFamily: "Manrope_400Regular" }} numberOfLines={2}>{item.deliveryAddress}</Text>
+                    </View>
+                  ) : null}
+                  <View className="flex flex-row items-center justify-between px-4 py-3 border-t border-[#F3F3F3]">
+                    <Text className="text-[13px] text-[#374151]" style={{ fontFamily: "Manrope_400Regular" }}>
+                      Total: <Text style={{ fontFamily: "Manrope_700Bold" }}>₦{item.totalAmount?.toLocaleString()}</Text>
+                    </Text>
+                    <Pressable
+                      onPress={() => handleClaim(item.id ?? item._id)}
+                      disabled={claimingId === (item.id ?? item._id)}
+                      className="bg-[#FF6EC7] px-4 py-[8px] rounded-[8px]"
+                      style={{ opacity: claimingId === (item.id ?? item._id) ? 0.6 : 1 }}
+                    >
+                      {claimingId === (item.id ?? item._id) ? (
+                        <ActivityIndicator size="small" color="#fff" />
+                      ) : (
+                        <Text className="text-white text-[12px]" style={{ fontFamily: "Manrope_600SemiBold" }}>Claim Order</Text>
+                      )}
+                    </Pressable>
+                  </View>
+                </View>
+              );
+            }}
+          />
+        )}
+      </SafeAreaView>
+    );
+  }
+  // ─────────────────────────────────────────────────────────────────────────
 
   // ----------------- Loading State -----------------
   if (loading) {

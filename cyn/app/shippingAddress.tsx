@@ -1,9 +1,21 @@
-import { View, Text, FlatList, Pressable, StyleSheet } from "react-native";
+import {
+  View,
+  Text,
+  FlatList,
+  Pressable,
+  StyleSheet,
+  Alert,
+  ActivityIndicator,
+} from "react-native";
 import Feather from "@expo/vector-icons/Feather";
-import { Entypo, Ionicons } from "@expo/vector-icons";
+import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useEffect, useState } from "react";
-import { getShippingAddress } from "@/services/api/request";
+import { useCallback, useEffect, useState } from "react";
+import {
+  addShippingAddress,
+  deleteShippingAddress,
+  getShippingAddress,
+} from "@/services/api/request";
 import {
   CustomDropdown,
   CustomTextInput,
@@ -11,116 +23,175 @@ import {
   ToggleButton,
 } from "@/components/reusables";
 import BottomSheet from "@/components/bottomSheet";
+import { useAuth } from "@/components/AuthContext";
+
+type FormData = {
+  country: string;
+  address: string;
+  townOrCity: string;
+  state: string;
+  postalCode: string;
+};
+type FormErrors = Partial<Record<keyof FormData, string>>;
+
+const EMPTY_FORM: FormData = {
+  country: "",
+  address: "",
+  townOrCity: "",
+  state: "",
+  postalCode: "",
+};
+
+const countries = [
+  { label: "Nigeria", value: "Nigeria" },
+  { label: "Ghana", value: "Ghana" },
+  { label: "United States", value: "United States" },
+  { label: "United Kingdom", value: "United Kingdom" },
+  { label: "Canada", value: "Canada" },
+];
+
+function validateForm(data: FormData): FormErrors {
+  const errors: FormErrors = {};
+  if (!data.country.trim()) errors.country = "Country is required";
+  if (!data.address.trim()) errors.address = "Address is required";
+  if (!data.postalCode.trim()) errors.postalCode = "Postal Code is required";
+  if (!data.state.trim()) errors.state = "State is required";
+  if (!data.townOrCity.trim()) errors.townOrCity = "Town Or City is required";
+  return errors;
+}
 
 export default function ShippingAddressScreen() {
+  const { user } = useAuth();
   const [isSheetVisible, setSheetVisible] = useState(false);
-  const [address, setAddress] = useState<any>();
+  const [addresses, setAddresses] = useState<any[]>([]);
+  const [listLoading, setListLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [isEnabled, setIsEnabled] = useState(false);
-  const [, setError] = useState<string | null>(null);
   const [errors, setErrors] = useState<FormErrors>({});
-  const [formData, setFormData] = useState({
-    country: "",
-    address: "",
-    townOrCity: "",
-    state: "",
-    postalCode: "",
-  });
-  type FormData = {
-    country: string;
-    address: string;
-    townOrCity: string;
-    state: string;
-    postalCode: string;
-  };
+  const [formData, setFormData] = useState<FormData>(EMPTY_FORM);
+
+  const fetchAddresses = useCallback(async () => {
+    if (!user?.id) return;
+    try {
+      setListLoading(true);
+      const res = await getShippingAddress(user.id);
+      setAddresses((res as any).data ?? []);
+    } catch {
+      setAddresses([]);
+    } finally {
+      setListLoading(false);
+    }
+  }, [user?.id]);
+
   useEffect(() => {
-    const fetchAddress = async () => {
-      try {
-        const response = await getShippingAddress("67367ece6cec8afc58094a1e");
-        console.log("response", response);
-        setAddress(response.data);
-      } catch (error: any) {
-        setError(error);
-      }
-    };
+    fetchAddresses();
+  }, [fetchAddresses]);
 
-    fetchAddress();
-  }, []);
-  const countries = [
-    { label: "Nigeria", value: "Nigeria" },
-    { label: "Ghana", value: "Ghana" },
-    { label: "United States", value: "United States" },
-    { label: "United Kingdom", value: "United Kingdom" },
-    { label: "Canada", value: "Canada" },
-  ];
-  const handleInputChange = (field: string, value: any) => {
-    setFormData((prev) => ({
-      ...prev,
-      [field]: value,
-    }));
+  const handleInputChange = (field: keyof FormData, value: string) => {
+    setFormData((prev) => ({ ...prev, [field]: value }));
+    if (errors[field]) setErrors((prev) => ({ ...prev, [field]: undefined }));
   };
-  type ItemProps = { address: string };
-  type FormErrors = Partial<Record<keyof FormData, string>>;
 
-  const validateForm = (data: FormData): FormErrors => {
-    const errors: FormErrors = {};
-
-    if (!data.country.trim()) {
-      errors.country = "Country is required";
+  const handleSave = async () => {
+    const validationErrors = validateForm(formData);
+    if (Object.keys(validationErrors).length > 0) {
+      setErrors(validationErrors);
+      return;
     }
-
-    if (!data.address.trim()) {
-      errors.address = "Address is required";
+    try {
+      setSaving(true);
+      await addShippingAddress({ ...formData, isDefault: isEnabled });
+      setSheetVisible(false);
+      setFormData(EMPTY_FORM);
+      setIsEnabled(false);
+      setErrors({});
+      await fetchAddresses();
+    } catch (error: any) {
+      Alert.alert(
+        "Error",
+        error?.response?.data?.message ?? "Failed to save address. Please try again.",
+      );
+    } finally {
+      setSaving(false);
     }
-
-    if (!data.postalCode.trim()) {
-      errors.postalCode = "Postal Code is required";
-    }
-
-    if (data.state.trim()) {
-      errors.state = "State is required";
-    }
-
-    if (data.townOrCity.trim()) {
-      errors.townOrCity = "Town Or City is required";
-    }
-
-    return errors;
   };
-  const Item = ({ address }: ItemProps) => (
-    <View
-      className="rounded-[8px] border-[0.25px] border-[rgb(230,230,230)] bg-white p-4 mb-3 mx-4"
-      style={styles.card}
-    >
-      <View className="flex flex-row justify-between items-center">
-        <View className="w-[90%]">
-          <Text
-            className="text-[12px] "
-            style={{ fontFamily: "Manrope_600SemiBold" }}
-          >
-            {address}
-          </Text>
-        </View>
 
-        <View className="flex flex-row w-[10%] items-end">
-          <Feather name="edit" size={16} color="black" className="mr-[6px]" />
-          <Ionicons name="trash-outline" size={16} color="black" />
-        </View>
-      </View>
-    </View>
-  );
-  return (
-    <SafeAreaView className="flex-1 bg-[#F8F8FF] " edges={["bottom"]}>
-      <View className="flex-1 ">
-        <FlatList
-          className="pt-4"
-          data={address}
-          renderItem={({ item }) => <Item address={item.address} />}
-          keyExtractor={(item) => item.id}
-          showsVerticalScrollIndicator={false}
-          ListEmptyComponent={
-            <EmptyList message="You have no Shipping Address" />
+  const handleDelete = (id: string) => {
+    Alert.alert("Delete Address", "Are you sure you want to delete this address?", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Delete",
+        style: "destructive",
+        onPress: async () => {
+          try {
+            await deleteShippingAddress(id);
+            await fetchAddresses();
+          } catch {
+            Alert.alert("Error", "Failed to delete address. Please try again.");
           }
-        />
+        },
+      },
+    ]);
+  };
+
+  return (
+    <SafeAreaView className="flex-1 bg-[#F8F8FF]" edges={["bottom"]}>
+      <View className="flex-1">
+        {listLoading ? (
+          <View className="flex-1 justify-center items-center">
+            <ActivityIndicator size="large" color="#FF6EC7" />
+          </View>
+        ) : (
+          <FlatList
+            className="pt-4"
+            data={addresses}
+            renderItem={({ item }) => (
+              <View
+                className="rounded-[8px] border-[0.25px] border-[rgb(230,230,230)] bg-white p-4 mb-3 mx-4"
+                style={styles.card}
+              >
+                <View className="flex flex-row justify-between items-center">
+                  <View className="flex-1 mr-2">
+                    <Text
+                      className="text-[12px] text-[#050404]"
+                      style={{ fontFamily: "Manrope_600SemiBold" }}
+                    >
+                      {[item.address, item.townOrCity, item.state]
+                        .filter(Boolean)
+                        .join(", ")}
+                    </Text>
+                    {item.country || item.postalCode ? (
+                      <Text
+                        className="text-[11px] text-[#585757] mt-1"
+                        style={{ fontFamily: "Manrope_400Regular" }}
+                      >
+                        {[item.country, item.postalCode].filter(Boolean).join(" · ")}
+                      </Text>
+                    ) : null}
+                    {item.isDefault && (
+                      <View className="mt-1 self-start bg-[#FFD2EE] px-2 py-[2px] rounded-full">
+                        <Text
+                          className="text-[10px] text-[#C6005C]"
+                          style={{ fontFamily: "Manrope_600SemiBold" }}
+                        >
+                          Default
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                  <Pressable onPress={() => handleDelete(item.id)} hitSlop={8}>
+                    <Ionicons name="trash-outline" size={18} color="#FF4444" />
+                  </Pressable>
+                </View>
+              </View>
+            )}
+            keyExtractor={(item) => item.id}
+            showsVerticalScrollIndicator={false}
+            ListEmptyComponent={
+              <EmptyList message="You have no Shipping Address" />
+            }
+          />
+        )}
         <Pressable
           className="bg-[#FF6EC7] py-[12px] rounded-[8px] mb-4 mx-4"
           onPress={() => setSheetVisible(true)}
@@ -133,17 +204,28 @@ export default function ShippingAddressScreen() {
           </Text>
         </Pressable>
       </View>
+
       <BottomSheet
         visible={isSheetVisible}
-        onClose={() => setSheetVisible(false)}
+        onClose={() => {
+          setSheetVisible(false);
+          setErrors({});
+          setFormData(EMPTY_FORM);
+        }}
         title={"Add New Shipping Address"}
-        maxHeight={0.94} // 60% of screen height
+        maxHeight={0.94}
         footer={
           <Pressable
-            className="flex-1 h-[48px] rounded-[4px] bg-[#FF6EC7]
-                       flex flex-row justify-center items-center gap-[8px]"
+            onPress={handleSave}
+            disabled={saving}
+            className="flex-1 h-[48px] rounded-[4px] bg-[#FF6EC7] flex flex-row justify-center items-center gap-[8px]"
+            style={{ opacity: saving ? 0.7 : 1 }}
           >
-            <Text className="text-white text-[16px]">Save</Text>
+            {saving ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : (
+              <Text className="text-white text-[16px]">Save</Text>
+            )}
           </Pressable>
         }
       >
@@ -208,13 +290,11 @@ export default function ShippingAddressScreen() {
     </SafeAreaView>
   );
 }
+
 const styles = StyleSheet.create({
   card: {
     shadowColor: "black",
-    shadowOffset: {
-      width: 0,
-      height: 0.5,
-    },
+    shadowOffset: { width: 0, height: 0.5 },
     shadowOpacity: 0.4,
     shadowRadius: 4,
     elevation: 14,

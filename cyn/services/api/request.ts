@@ -1,4 +1,10 @@
-import { apiGetRequest, apiPatch, apiPost } from "@/utils/axios/axios";
+import {
+  apiDelete,
+  apiGetRequest,
+  apiPatch,
+  apiPost,
+  SERVER_URL,
+} from "@/utils/axios/axios";
 import {
   ProductOrderResponse,
   LoginProps,
@@ -6,15 +12,8 @@ import {
   Category,
   BookingStatsResponse,
 } from "./../../types/type";
-import Constants from "expo-constants";
 import { AxiosResponse } from "axios";
-// const baseUrl = process.env.EXPO_PUBLIC_BASE_URL;
-const hostIp =
-  Constants.expoConfig && Constants.expoConfig.hostUri
-    ? Constants.expoConfig.hostUri.split(":")[0]
-    : "";
-// const baseUrl = `http://${hostIp}:5000/api/v1`;
-const baseUrl: string = "https://cynderallabackend.onrender.com/api/v1";
+const baseUrl = `${SERVER_URL}/api/v1`;
 
 type CategoryResponse = {
   data: Category[];
@@ -223,7 +222,7 @@ export const signUpServiceProvider = async (formData: any) => {
   return response.data;
 };
 export const SignUp = async (formData: SignUpProps) => {
-  const response = await fetch(`${baseUrl}/api/v1/auth/register`, {
+  const response = await fetch(`${baseUrl}/auth/register`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -234,7 +233,7 @@ export const SignUp = async (formData: SignUpProps) => {
   return response;
 };
 export const Login = async (formData: LoginProps) => {
-  const response = await fetch(`${baseUrl}/api/v1/auth/login`, {
+  const response = await fetch(`${baseUrl}/auth/login`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -256,12 +255,39 @@ export const getShippingAddress = async (userId: string) => {
   );
   return response.data;
 };
+export const addShippingAddress = async (formData: any) => {
+  const response = await apiPost<any>(`/shipping-address`, formData);
+  return response.data;
+};
+export const deleteShippingAddress = async (id: string) => {
+  const response = await apiDelete<any>(`/shipping-address/${id}`);
+  return response.data;
+};
+export const getPeriodTrackerData = async () => {
+  const response = await apiGetRequest<{ data: any }>(`/period-tracker/me`);
+  return response.data.data;
+};
+export const savePeriodTrackerData = async (formData: {
+  lastPeriodDate: string;
+  periodLength?: number;
+  cycleLength?: number;
+}) => {
+  const response = await apiPost<{ data: any }>(`/period-tracker`, formData);
+  return response.data.data;
+};
 export const forgotPassword = async (email: string) => {
   return await apiPost<{ message: string }>(
     `/auth/forgot-password/${email}`,
     {},
   );
 };
+export const getChatMessages = async (bookingId: string) => {
+  const response = await apiGetRequest<{ data: any[] }>(
+    `/bookings/${bookingId}/chat`,
+  );
+  return response.data.data ?? response.data;
+};
+
 export const addNewReview = async (formData: any) => {
   const response = await apiPost<{ message: string }>(
     `/product-review`,
@@ -272,4 +298,104 @@ export const addNewReview = async (formData: any) => {
 export const updateUser = async (formData: any) => {
   const response = await apiPatch<{ message: string }>(`/user`, formData);
   return response;
+};
+
+export const signUpRider = async (formData: any) => {
+  const response = await apiPost<any>(`/auth/register-rider`, formData);
+  return response.data;
+};
+
+export const getRiderOrders = async (riderId: string, status?: string) => {
+  let url = `/product-order?rider=${riderId}&pagination_size=100`;
+  if (status) url += `&status=${status}`;
+  const response = await apiGetRequest<{ data: [] }>(url);
+  return response.data;
+};
+
+export const updateRiderOrderStatus = async (
+  orderId: string,
+  status: string,
+) => {
+  const response = await apiPatch<{ data: any }>(
+    `/product-order/${orderId}/status`,
+    { status },
+  );
+  return response.data;
+};
+
+export const getAvailableOrders = async () => {
+  const response = await apiGetRequest<{ data: any[] }>(`/product-order/available`);
+  return response.data;
+};
+
+export const claimOrder = async (orderId: string) => {
+  const response = await apiPatch<{ data: any }>(`/product-order/${orderId}/claim`, {});
+  return response.data;
+};
+
+export const getVendorOrders = async () => {
+  const response = await apiGetRequest<{ data: any[] }>(`/product-order/vendor`);
+  return (response.data as any).data ?? response.data;
+};
+
+export const markOrderAsPackaged = async (orderId: string) => {
+  const response = await apiPatch<{ data: any }>(`/product-order/${orderId}/package`, {});
+  return response.data;
+};
+
+export const getProviderAvailableDates = async (
+  providerId: string,
+  startDate: string,
+  endDate: string,
+): Promise<{ date: string; availableTimes: string[]; isAvailable: boolean }[]> => {
+  const response = await apiGetRequest<{ data: { availableDates: any[] } }>(
+    `/provider-availability/provider/${providerId}/available-dates?startDate=${startDate}&endDate=${endDate}`,
+  );
+  return (response.data as any).data?.availableDates ?? [];
+};
+
+export const getProviderAvailableTimes = async (
+  providerId: string,
+  date: string,
+): Promise<{ availableTimes: string[]; isAvailable: boolean }> => {
+  const response = await apiGetRequest<{ data: any }>(
+    `/provider-availability/provider/${providerId}/available-times?date=${date}`,
+  );
+  return (response.data as any).data ?? { availableTimes: [], isAvailable: false };
+};
+
+export const getNotifications = async () => {
+  const response = await apiGetRequest<{ data: any[] }>(`/notifications`);
+  return (response.data as any).data ?? [];
+};
+
+export const getUnreadNotificationCount = async () => {
+  const response = await apiGetRequest<{ data: { count: number } }>(`/notifications/unread-count`);
+  return (response.data as any).data?.count ?? 0;
+};
+
+export const markNotificationRead = async (id: string) => {
+  const response = await apiPatch<{ data: any }>(`/notifications/${id}/read`, {});
+  return response.data;
+};
+
+export const markAllNotificationsRead = async () => {
+  const response = await apiPatch<{ message: string }>(`/notifications/read-all`, {});
+  return response.data;
+};
+
+export const createWithdrawalRequest = async (amount: number) => {
+  const response = await apiPost<{ data: any }>(`/withdrawal-requests`, { amount });
+  return response.data;
+};
+
+export const updateRiderLocation = async (
+  latitude: number,
+  longitude: number,
+) => {
+  const response = await apiPatch<{ data: any }>(`/rider/location`, {
+    latitude,
+    longitude,
+  });
+  return response.data;
 };

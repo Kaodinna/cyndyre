@@ -13,8 +13,12 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { Link } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Href } from "expo-router";
+import { useAuth } from "@/components/AuthContext";
+
 export default function Tab() {
-  // const profilepix = require("../../assets/images/Ellipse 4.png");
+  const { user } = useAuth();
+  const isRider = user?.role === "rider";
+
   type MenuItem = {
     id: string;
     title: string;
@@ -25,31 +29,34 @@ export default function Tab() {
     title: string;
     data: MenuItem[];
   };
-  const Data: Section[] = [
-    {
-      title: "Settings",
-      data: [],
-    },
-    {
-      title: "Personal",
-      data: [
-        { id: "1", title: "Profile", link: "/profile" },
-        { id: "3", title: "Shipping Address", link: "/shippingAddress" },
-        { id: "4", title: "Payment Methods" },
-        { id: "5", title: "Period Tracker", link: "/periodTrackerScreen" },
-      ],
-    },
-    {
-      title: "Shop",
-      data: [
-        { id: "1", title: "My Orders", link: "/myOrders" },
+
+  const personalItems: MenuItem[] = [
+    { id: "1", title: "Profile", link: "/profile" },
+    ...(isRider ? [] : [
+      { id: "3", title: "Shipping Address", link: "/shippingAddress" as Href },
+      { id: "4", title: "Payment Methods" },
+      { id: "5", title: "Period Tracker", link: "/periodTrackerScreen" as Href },
+    ]),
+  ];
+
+  const activityItems: MenuItem[] = isRider
+    ? [
+        { id: "1", title: "My Deliveries", link: "/riderDeliveries" as Href },
+        { id: "2", title: "Help Center" },
+      ]
+    : [
+        { id: "1", title: "My Orders", link: "/myOrders" as Href },
         { id: "2", title: "Help Center" },
         { id: "3", title: "Privacy Policy" },
         { id: "4", title: "Terms and Conditions" },
         { id: "5", title: "Country" },
         { id: "6", title: "Currency" },
-      ],
-    },
+      ];
+
+  const Data: Section[] = [
+    { title: "Settings", data: [] },
+    { title: "Personal", data: personalItems },
+    { title: isRider ? "Deliveries" : "Shop", data: activityItems },
   ];
 
   return (

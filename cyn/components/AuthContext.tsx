@@ -38,7 +38,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         const decoded: any = jwtDecode(parsed.accessToken);
 
         const expired = Date.now() >= decoded.exp * 1000;
-        if (expired && parsed.role === "businessOwner") {
+        if (expired) {
           await AsyncStorage.removeItem("customerData");
           setUser(null);
         } else {

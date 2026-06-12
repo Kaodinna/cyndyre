@@ -75,7 +75,31 @@ export default function CustomDrawer(props: DrawerContentComponentProps) {
               <Text className="text-white">Profile</Text>
             </Pressable>
           )}
-          {user?.role !== "businessOwner" && (
+          {user?.role === "rider" && (
+            <Pressable
+              onPress={() => {
+                props.navigation.closeDrawer();
+                router.push("/profile");
+              }}
+              className=" flex flex-row gap-[10px] items-center h-[48px]"
+            >
+              <Feather name="user" size={24} color="white" />
+              <Text className="text-white">Profile</Text>
+            </Pressable>
+          )}
+          {user?.role === "rider" && (
+            <Pressable
+              onPress={() => {
+                props.navigation.closeDrawer();
+                router.push("/riderDeliveries");
+              }}
+              className=" flex flex-row gap-[10px] items-center h-[48px]"
+            >
+              <MaterialCommunityIcons name="bike-fast" size={24} color="white" />
+              <Text className="text-white">My Deliveries</Text>
+            </Pressable>
+          )}
+          {user?.role !== "businessOwner" && user?.role !== "rider" && (
             <Pressable
               onPress={() => {
                 props.navigation.closeDrawer();
@@ -87,7 +111,7 @@ export default function CustomDrawer(props: DrawerContentComponentProps) {
               <Text className="text-white">My Orders</Text>
             </Pressable>
           )}
-          {user?.role !== "businessOwner" && (
+          {user?.role !== "businessOwner" && user?.role !== "rider" && (
             <Pressable
               onPress={() => {
                 props.navigation.closeDrawer();
@@ -99,7 +123,7 @@ export default function CustomDrawer(props: DrawerContentComponentProps) {
               <Text className="text-white">Cart</Text>
             </Pressable>
           )}
-          {user?.role !== "businessOwner" && (
+          {user?.role !== "businessOwner" && user?.role !== "rider" && (
             <Pressable
               onPress={() => {
                 props.navigation.closeDrawer();
@@ -111,7 +135,7 @@ export default function CustomDrawer(props: DrawerContentComponentProps) {
               <Text className="text-white">Period Tracker</Text>
             </Pressable>
           )}
-          {user?.role !== "businessOwner" && (
+          {user?.role !== "businessOwner" && user?.role !== "rider" && (
             <Pressable
               onPress={() => {
                 props.navigation.closeDrawer();
@@ -123,7 +147,7 @@ export default function CustomDrawer(props: DrawerContentComponentProps) {
               <Text className="text-white">My Bookings</Text>
             </Pressable>
           )}
-          {user?.role !== "businessOwner" && (
+          {user?.role !== "businessOwner" && user?.role !== "rider" && (
             <Pressable
               onPress={() => {
                 props.navigation.closeDrawer();

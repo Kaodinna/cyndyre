@@ -2,124 +2,17 @@ import {
   Text,
   View,
   Image,
-  SafeAreaView,
-  StatusBar,
-  StyleSheet,
-  ImageBackground,
   Pressable,
-  Platform,
-  UIManager,
-  Animated,
-  LayoutAnimation,
-  TextInput,
   ScrollView,
   KeyboardAvoidingView,
+  Platform,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Link } from "expo-router";
-import { LinearGradient } from "expo-linear-gradient";
 import CustomStatusBar from "@/components/statusbar";
-import { useForm, Controller } from "react-hook-form";
-import { yupResolver } from "@hookform/resolvers/yup";
-import { clientRegisterSchema } from "@/helpers/schema";
-import React, { useState, useEffect, useRef } from "react";
-import { MaterialCommunityIcons } from "@expo/vector-icons";
-import Checkbox from "expo-checkbox";
+import React from "react";
 
 export default function VerifyEmailScreen() {
-  const [isPasswordVisible, setIsPasswordVisible] = useState(false);
-  const [isRepeatPasswordVisible, setIsRepeatPasswordVisible] = useState(false);
-  const [isChecked, setChecked] = useState(false);
-  const [focusStates, setFocusStates] = useState({
-    firstName: false,
-    lastName: false,
-    email: false,
-    password: false,
-    repeatPassword: false,
-    referralCode: false,
-  });
-  const handleCheckboxChange = (value: any) => {
-    setChecked(value);
-    // setValue("", value);
-  };
-  const {
-    setValue,
-    control,
-    handleSubmit,
-    formState: { errors },
-  } = useForm({
-    resolver: yupResolver(clientRegisterSchema),
-    defaultValues: {
-      email: "",
-      password: "",
-      firstName: "",
-      lastName: "",
-      repeatPassword: "",
-    },
-  });
-  const handleFocus = (inputName: string) => {
-    setFocusStates((prevState) => ({
-      ...prevState,
-      [inputName]: true,
-    }));
-  };
-
-  if (
-    Platform.OS === "android" &&
-    UIManager.setLayoutAnimationEnabledExperimental
-  ) {
-    UIManager.setLayoutAnimationEnabledExperimental(true);
-  }
-  const fadeAnim = useRef(new Animated.Value(0)).current;
-
-  const fadeIn = () => {
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    Animated.timing(fadeAnim, {
-      toValue: 1,
-      duration: 300, // Adjust the duration as needed
-      useNativeDriver: true,
-    }).start();
-  };
-
-  const fadeOut = () => {
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    Animated.timing(fadeAnim, {
-      toValue: 0,
-      duration: 300, // Adjust the duration as needed
-      useNativeDriver: true,
-    }).start();
-  };
-
-  useEffect(() => {
-    if (
-      errors.firstName ||
-      errors.lastName ||
-      errors.email ||
-      errors.password ||
-      errors.repeatPassword
-    ) {
-      fadeIn();
-    } else {
-      fadeOut();
-    }
-  }, [
-    errors.firstName,
-    errors.email,
-    errors.lastName,
-    errors.password,
-    errors.repeatPassword,
-  ]);
-
-  const handleBlur = (inputName: string) => {
-    setFocusStates((prevState) => ({
-      ...prevState,
-      [inputName]: false,
-    }));
-  };
-  const styles = StyleSheet.create({});
-  const fashionShop = require("../assets/images/unsplash_fouVDmGXoPI.png");
-  const google = require("../assets/images/Google - Original.jpg");
-  const apple = require("../assets/images/Apple - Original-2.jpg");
   const logo = require("../assets/images/logo.png");
   return (
     <CustomStatusBar>

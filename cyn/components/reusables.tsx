@@ -1645,92 +1645,137 @@ export const InfoCard = ({
 type CalendarPickerProps = {
   value: string | null;
   onSelect?: (date: string) => void;
+  availableDates?: { date: string; isAvailable: boolean }[];
+  loading?: boolean;
 };
 
-export const CalendarPicker = ({ value, onSelect }: CalendarPickerProps) => {
+export const CalendarPicker = ({
+  value,
+  onSelect,
+  availableDates,
+  loading,
+}: CalendarPickerProps) => {
+  const availableSet = React.useMemo(() => {
+    if (!availableDates) return null;
+    return new Set(availableDates.filter((d) => d.isAvailable).map((d) => d.date));
+  }, [availableDates]);
+
+  const markedDates = React.useMemo(() => {
+    const marks: Record<string, any> = {};
+    if (availableDates) {
+      for (const d of availableDates) {
+        if (!d.isAvailable) {
+          marks[d.date] = { disabled: true, disableTouchEvent: true };
+        }
+      }
+    }
+    if (value) {
+      marks[value] = { selected: true, selectedColor: "#EC4899", disableTouchEvent: false };
+    }
+    return marks;
+  }, [availableDates, value]);
+
   const onDayPress = (day: any) => {
+    if (availableSet && !availableSet.has(day.dateString)) return;
     onSelect?.(day.dateString);
   };
 
   return (
     <View style={{ marginBottom: 16 }}>
+      {loading && (
+        <View style={{ padding: 8, alignItems: "center" }}>
+          <ActivityIndicator size="small" color="#EC4899" />
+          <Text style={{ color: "#9CA3AF", fontSize: 12, marginTop: 4 }}>
+            Loading availability…
+          </Text>
+        </View>
+      )}
       <Calendar
         minDate={new Date().toISOString().split("T")[0]}
         onDayPress={onDayPress}
-        markedDates={
-          value
-            ? {
-                [value]: {
-                  selected: true,
-                  selectedColor: "#EC4899",
-                },
-              }
-            : {}
-        }
+        markedDates={markedDates}
         theme={{
           todayTextColor: "#EC4899",
           arrowColor: "#EC4899",
           selectedDayBackgroundColor: "#EC4899",
+          disabledDayTextColor: "#D1D5DB",
+          textDisabledColor: "#D1D5DB",
         }}
       />
+      {availableDates && !loading && (
+        <View style={{ flexDirection: "row", gap: 16, paddingHorizontal: 8, paddingTop: 6 }}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+            <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: "#EC4899" }} />
+            <Text style={{ fontSize: 11, color: "#6B7280" }}>Available</Text>
+          </View>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+            <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: "#D1D5DB" }} />
+            <Text style={{ fontSize: 11, color: "#6B7280" }}>Unavailable</Text>
+          </View>
+        </View>
+      )}
     </View>
   );
 };
 
-interface TimeSlot {
-  time: string;
-  disabled?: boolean;
+function to12Hour(time24: string): string {
+  const [h, m] = time24.split(":").map(Number);
+  const period = h >= 12 ? "PM" : "AM";
+  const hour = h % 12 === 0 ? 12 : h % 12;
+  return `${String(hour).padStart(2, "0")}:${String(m).padStart(2, "0")} ${period}`;
 }
 
-const SLOTS: TimeSlot[] = [
-  { time: "09:00 AM" },
-  { time: "10:00 AM" },
-  { time: "11:00 AM", disabled: true },
-  { time: "12:00 PM" },
-  { time: "01:00 PM" },
-  { time: "02:00 PM" },
-  { time: "03:00 PM" },
-  { time: "04:00 PM" },
-];
-
 type TimeSlotGridProps = {
-  value: string | null; // controlled value
+  value: string | null;
   onSelect?: (time: string) => void;
+  slots?: string[];
+  loading?: boolean;
 };
 
-export const TimeSlotGrid = ({ value, onSelect }: TimeSlotGridProps) => {
-  const selectTime = (time: string) => {
-    onSelect?.(time); // notify parent
-  };
+export const TimeSlotGrid = ({
+  value,
+  onSelect,
+  slots,
+  loading,
+}: TimeSlotGridProps) => {
+  if (loading) {
+    return (
+      <View style={{ padding: 16, alignItems: "center" }}>
+        <ActivityIndicator size="small" color="#EC4899" />
+        <Text style={{ color: "#9CA3AF", fontSize: 12, marginTop: 6 }}>
+          Loading time slots…
+        </Text>
+      </View>
+    );
+  }
+
+  if (slots && slots.length === 0) {
+    return (
+      <View style={{ padding: 16, alignItems: "center" }}>
+        <Text style={{ color: "#9CA3AF", fontSize: 13 }}>
+          No available times on this day.
+        </Text>
+      </View>
+    );
+  }
+
+  const displaySlots = slots ?? [];
 
   return (
     <View>
       <Text style={styles.label}>Available Time</Text>
-
       <View style={styles.grid}>
-        {SLOTS.map((slot) => {
-          const isSelected = value === slot.time;
-          const isDisabled = slot.disabled;
-
+        {displaySlots.map((time24) => {
+          const display = to12Hour(time24);
+          const isSelected = value === time24;
           return (
             <TouchableOpacity
-              key={slot.time}
-              style={[
-                styles.slot,
-                isSelected && styles.selected,
-                isDisabled && styles.disabled,
-              ]}
-              disabled={isDisabled}
-              onPress={() => selectTime(slot.time)}
+              key={time24}
+              style={[styles.slot, isSelected && styles.selected]}
+              onPress={() => onSelect?.(time24)}
             >
-              <Text
-                style={[
-                  styles.slotText,
-                  isSelected && styles.selectedText,
-                  isDisabled && styles.disabledText,
-                ]}
-              >
-                {slot.time}
+              <Text style={[styles.slotText, isSelected && styles.selectedText]}>
+                {display}
               </Text>
             </TouchableOpacity>
           );

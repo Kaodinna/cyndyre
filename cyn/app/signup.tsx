@@ -1435,6 +1435,163 @@ export default function SignupScreen() {
                 </View>
               </View>
             )}
+            {role === "rider" && (
+              <View className="flex-1 px-4">
+                {riderApiError && (
+                  <Text className="text-[#FF0000] text-[12px] mb-2 px-4" style={{ fontFamily: "Manrope_400Regular" }}>
+                    {riderApiError}
+                  </Text>
+                )}
+                {riderStep === 1 && (
+                  <View className="py-[16px] flex flex-col gap-[24px]">
+                    <View
+                      className="rounded-[14px] p-[24px] bg-white flex flex-col gap-[16px]"
+                      style={{ shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, shadowRadius: 4, elevation: 5 }}
+                    >
+                      <Text className="text-[#101828] text-[16px]" style={{ fontFamily: "Manrope_400Regular" }}>
+                        Personal Information
+                      </Text>
+                      <CustomTextInput
+                        label="Full Name"
+                        value={riderFormData.fullName}
+                        onChangeText={(t) => handleRiderInputChange("fullName", t)}
+                        placeholder="Enter your full name"
+                        placeholderTextColor="#0A0A0A80"
+                        errorMessage={riderErrors.fullName}
+                      />
+                      <CustomTextInput
+                        label="Email"
+                        value={riderFormData.email}
+                        onChangeText={(t) => handleRiderInputChange("email", t)}
+                        placeholder="Enter email"
+                        placeholderTextColor="#0A0A0A80"
+                        errorMessage={riderErrors.email}
+                      />
+                      <CustomTextInput
+                        secureTextEntry
+                        label="Password"
+                        value={riderFormData.password}
+                        onChangeText={(t) => handleRiderInputChange("password", t)}
+                        placeholder="Enter password"
+                        placeholderTextColor="#0A0A0A80"
+                        errorMessage={riderErrors.password}
+                      />
+                      <CustomTextInput
+                        secureTextEntry
+                        label="Confirm Password"
+                        value={riderFormData.confirmPassword}
+                        onChangeText={(t) => handleRiderInputChange("confirmPassword", t)}
+                        placeholder="Confirm password"
+                        placeholderTextColor="#0A0A0A80"
+                        errorMessage={riderErrors.confirmPassword}
+                      />
+                      <CustomTextInput
+                        label="Phone Number"
+                        value={riderFormData.phoneNumber}
+                        onChangeText={(t) => handleRiderInputChange("phoneNumber", t)}
+                        placeholder="081*******, 070******"
+                        placeholderTextColor="#0A0A0A80"
+                        errorMessage={riderErrors.phoneNumber}
+                      />
+                    </View>
+                    <Pressable
+                      className="bg-[#F6339A] h-[48px] rounded-[10px] flex flex-row justify-center items-center"
+                      onPress={() => { if (validateRiderStep(1)) setRiderStep(2); }}
+                    >
+                      <Text className="text-[#ffffff] text-[16px]" style={{ fontFamily: "Manrope_400Regular" }}>
+                        Next
+                      </Text>
+                    </Pressable>
+                  </View>
+                )}
+                {riderStep === 2 && (
+                  <View className="py-[16px] flex flex-col gap-[24px]">
+                    <View
+                      className="rounded-[14px] p-[24px] bg-white flex flex-col gap-[16px]"
+                      style={{ shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, shadowRadius: 4, elevation: 5 }}
+                    >
+                      <Text className="text-[#101828] text-[16px]" style={{ fontFamily: "Manrope_400Regular" }}>
+                        Vehicle &amp; Location
+                      </Text>
+                      <View className="flex flex-col gap-[8px]">
+                        <Text className="text-[14px] text-[#373636]" style={{ fontFamily: "Manrope_400Regular" }}>
+                          Vehicle Type
+                        </Text>
+                        <View className="flex flex-row gap-[10px]">
+                          {["motorcycle", "bicycle", "car"].map((vt) => (
+                            <Pressable
+                              key={vt}
+                              onPress={() => handleRiderInputChange("vehicleType", vt)}
+                              className={`flex-1 py-[10px] rounded-[8px] items-center ${riderFormData.vehicleType === vt ? "bg-[#FF6EC7]" : "border-[1px] border-[#B2B1B1]"}`}
+                            >
+                              <Text
+                                className={`text-[12px] capitalize ${riderFormData.vehicleType === vt ? "text-white" : "text-[#050404]"}`}
+                                style={{ fontFamily: "Manrope_500Medium" }}
+                              >
+                                {vt}
+                              </Text>
+                            </Pressable>
+                          ))}
+                        </View>
+                        {riderErrors.vehicleType ? (
+                          <Text className="text-[10px] text-[#FF0000]" style={{ fontFamily: "Manrope_400Regular" }}>{riderErrors.vehicleType}</Text>
+                        ) : null}
+                      </View>
+                      <CustomTextInput
+                        label="Vehicle Plate Number"
+                        value={riderFormData.vehiclePlate}
+                        onChangeText={(t) => handleRiderInputChange("vehiclePlate", t)}
+                        placeholder="e.g. ABC-123-XY"
+                        placeholderTextColor="#0A0A0A80"
+                        errorMessage={riderErrors.vehiclePlate}
+                      />
+                      <CustomTextInput
+                        label="Address"
+                        value={riderFormData.address}
+                        onChangeText={(t) => handleRiderInputChange("address", t)}
+                        placeholder="Enter your address"
+                        placeholderTextColor="#0A0A0A80"
+                        errorMessage={riderErrors.address}
+                      />
+                      <CustomTextInput
+                        label="City"
+                        value={riderFormData.city}
+                        onChangeText={(t) => handleRiderInputChange("city", t)}
+                        placeholder="Enter your city"
+                        placeholderTextColor="#0A0A0A80"
+                        errorMessage={riderErrors.city}
+                      />
+                      <CustomDropdown
+                        label="State"
+                        placeholder="Select State"
+                        value={riderFormData.state}
+                        onSelect={(t) => handleRiderInputChange("state", t)}
+                        options={nigeriaStates}
+                        errorMessage={riderErrors.state}
+                      />
+                    </View>
+                    <View className="flex flex-row items-center gap-[16px] w-full">
+                      <Pressable
+                        className="border-[#F6339A] border-[1px] h-[48px] rounded-[10px] flex flex-row justify-center items-center flex-1"
+                        onPress={() => setRiderStep(1)}
+                      >
+                        <Text className="text-[#F6339A] text-[16px]" style={{ fontFamily: "Manrope_400Regular" }}>
+                          Previous
+                        </Text>
+                      </Pressable>
+                      <Pressable
+                        className="bg-[#F6339A] h-[48px] rounded-[10px] flex flex-row justify-center items-center flex-1"
+                        onPress={handleRiderSignup}
+                      >
+                        <Text className="text-[#ffffff] text-[16px]" style={{ fontFamily: "Manrope_400Regular" }}>
+                          Create Account
+                        </Text>
+                      </Pressable>
+                    </View>
+                  </View>
+                )}
+              </View>
+            )}
           </ScrollView>
         </>
       </KeyboardAvoidingView>

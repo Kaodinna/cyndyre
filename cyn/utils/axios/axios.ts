@@ -1,15 +1,10 @@
 import axios, { AxiosResponse } from "axios";
 import { ApiConfig } from "@/types/type";
-import Constants from "expo-constants";
-// const baseUrl: string = "http://localhost:5000/api/v1";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-// const baseUrl: string = "https://cynderallabackend.onrender.com/api/v1";
-const hostIp =
-  Constants.expoConfig && Constants.expoConfig.hostUri
-    ? Constants.expoConfig.hostUri.split(":")[0]
-    : "";
-const baseUrl = `http://${hostIp}:5000/api/v1`;
-// const baseUrl = `https://cynderallabackend-production-ab60.up.railway.app/api/v1`;
+// export const SERVER_URL = "https://cynderallabackend.onrender.com";
+export const SERVER_URL = "http://192.168.1.236:5000";
+const baseUrl = `${SERVER_URL}/api/v1`;
+
 export const getToken = async (): Promise<string> => {
   try {
     const storedCustomerData = await AsyncStorage.getItem("customerData");
@@ -60,8 +55,16 @@ export const apiPatch = async <T = any>(
   const config: ApiConfig = {
     headers: {
       Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json", // Include common headers here if applicable
+      "Content-Type": "application/json",
     },
   };
   return await axios.patch<T>(`${baseUrl}${path}`, body, config);
+};
+export const apiDelete = async <T = any>(
+  path: string,
+): Promise<AxiosResponse<T>> => {
+  const token = await getToken();
+  return await axios.delete<T>(`${baseUrl}${path}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
 };

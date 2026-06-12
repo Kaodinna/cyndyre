@@ -21,11 +21,14 @@ import {
 } from "@expo/vector-icons";
 import * as Location from "expo-location";
 import {
+  createWithdrawalRequest,
+  getBanks,
   getBookingsPayment,
   getProducts,
   getServiceProvider,
   getServiceProviders,
   getServiceProviderStats,
+  getUser,
 } from "@/services/api/request";
 import {
   AppModal,
@@ -72,6 +75,11 @@ export default function Tab() {
   const [openWithdraw, setOpenWithdraw] = useState(false);
   const [payment, setPayment] = useState<any>();
   const [refreshing, setRefreshing] = useState(false);
+  const [walletBalance, setWalletBalance] = useState(0);
+  const [bankAccounts, setBankAccounts] = useState<
+    { id: string; bankName: string; accountNumber: string; accountName: string }[]
+  >([]);
+  const [withdrawing, setWithdrawing] = useState(false);
 
   const { user, isAuthenticated, logout } = useAuth();
   const [open, setOpen] = useState(false);
@@ -155,13 +163,25 @@ export default function Tab() {
         if (!provider?.id) {
           throw new Error("Service provider ID not found");
         }
-        const [payRes, providerStats] = await Promise.all([
+        const [payRes, providerStats, userProfile, banksRes] = await Promise.all([
           getBookingsPayment(),
           getServiceProviderStats(provider.id),
+          getUser(),
+          getBanks(),
         ]);
 
         setStats(providerStats);
         setPayments(payRes);
+        setWalletBalance((userProfile as any)?.data?.wallet ?? 0);
+        const rawBanks: any[] = (banksRes as any)?.data ?? (Array.isArray(banksRes) ? banksRes : []);
+        setBankAccounts(
+          rawBanks.map((b: any) => ({
+            id: b._id ?? b.id,
+            bankName: b.bankName,
+            accountNumber: b.accountNumber,
+            accountName: b.accountName,
+          })),
+        );
       } catch (err: any) {
         setError(err?.message);
       } finally {
@@ -347,7 +367,7 @@ export default function Tab() {
                     className="text-[#101828] text-[16px]"
                     style={{ fontFamily: "Manrope_400Regular" }}
                   >
-                    ₦450,000
+                    ₦{formatNumberToThousands(walletBalance)}
                   </Text>
                 </View>
                 <Pressable
@@ -568,29 +588,24 @@ export default function Tab() {
       <WithdrawFundsModal
         visible={openWithdraw}
         onClose={() => setOpenWithdraw(false)}
-        availableBalance={450000}
-        accounts={[
-          {
-            id: "1",
-            bankName: "GTBank",
-            accountNumber: "0123456789",
-            accountName: "Sarah Johnson",
-          },
-          {
-            id: "2",
-            bankName: "Access Bank",
-            accountNumber: "0987654321",
-            accountName: "Sarah Johnson",
-          },
-        ]}
+        availableBalance={walletBalance}
+        accounts={bankAccounts}
         onAddNewBank={() => {
           setOpenWithdraw(false);
-
           router.push("/banks");
         }}
-        onConfirmWithdrawal={({ amount, account }) => {
-          console.log("Confirm withdraw", amount, account);
-          // call your API here
+        onConfirmWithdrawal={async ({ amount }) => {
+          if (withdrawing) return;
+          try {
+            setWithdrawing(true);
+            await createWithdrawalRequest(amount);
+            setWalletBalance((prev) => Math.max(0, prev - amount));
+            setOpenWithdraw(false);
+          } catch {
+            // modal stays open on error
+          } finally {
+            setWithdrawing(false);
+          }
         }}
       />
       <AppModal

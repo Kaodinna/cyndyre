@@ -16,25 +16,18 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Link, router } from "expo-router";
-import CustomStatusBar from "@/components/statusbar";
 import { useForm, Controller } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
 import { loginSchema } from "@/helpers/schema";
 import React, { useState, useEffect, useRef } from "react";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import axios from "axios";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import { useAuth } from "@/components/AuthContext";
-import Constants from "expo-constants";
+import { SERVER_URL } from "@/utils/axios/axios";
 export default function LoginScreen() {
-  const hostIp =
-    Constants.expoConfig && Constants.expoConfig.hostUri
-      ? Constants.expoConfig.hostUri.split(":")[0]
-      : "";
-  const baseUrl = `http://${hostIp}:5000/api/v1`;
-  // const baseUrl: string = "https://cynderallabackend.onrender.com/api/v1";
+  const baseUrl = `${SERVER_URL}/api/v1`;
 
   const [loading, setLoading] = useState(false);
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
@@ -212,7 +205,7 @@ export default function LoginScreen() {
                           keyboardType="email-address"
                           onChangeText={onChange}
                           value={value}
-                          placeholder="Input your first  name"
+                          placeholder="Input your email address"
                           className={`rounded-[4px] border-[1px] px-[16px] py-[13px] ${
                             !value ? "border-[#B2B1B1]" : "border-[#050404]"
                           }`}
@@ -257,7 +250,7 @@ export default function LoginScreen() {
                             onChangeText={onChange}
                             value={value}
                             secureTextEntry={!isPasswordVisible}
-                            placeholder="Input your first  name"
+                            placeholder="Input your password"
                             textContentType="password" // iOS
                             autoComplete="password" // Android/modern RN
                             importantForAutofill="yes"

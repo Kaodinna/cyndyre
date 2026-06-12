@@ -10,6 +10,7 @@ import {
   Platform,
   ActivityIndicator,
   StatusBar,
+  Alert,
 } from "react-native";
 import {
   Ionicons,
@@ -22,7 +23,16 @@ import {
 } from "@expo/vector-icons";
 
 import ImageSlider from "@/components/imaageSlider";
-import { useEffect, useState, useMemo, useCallback } from "react";
+import { useEffect, useState, useMemo, useCallback, useRef } from "react";
+import * as Location from "expo-location";
+import {
+  getRiderOrders,
+  updateRiderOrderStatus,
+  updateRiderLocation,
+  getVendorOrders,
+  markOrderAsPackaged,
+} from "@/services/api/request";
+// import { EmptyList } from "@/components/reusables";
 import {
   getCategories,
   getProducts,
@@ -100,7 +110,7 @@ export default function Tab() {
 
   const navigation = useNavigation<DrawerNavigationProp<ParamListBase>>();
 
-  const [state, setState] = useState<"overview" | "bookings" | "analytics">(
+  const [state, setState] = useState<"overview" | "bookings" | "orders" | "analytics">(
     "overview",
   );
   const [filter, setFilter] = useState<
@@ -111,6 +121,7 @@ export default function Tab() {
   const tabs = [
     { key: "overview", label: "Overview" },
     { key: "bookings", label: "Bookings" },
+    { key: "orders", label: "Orders" },
     { key: "analytics", label: "Analytics" },
   ];
   const bookingTabs = [
@@ -288,6 +299,294 @@ export default function Tab() {
       ],
     };
   }, [detailedStats]);
+  // ─── Rider deliveries tab ───────────────────────────────────────────────
+  const [riderFilter, setRiderFilter] = useState("pending");
+  const [riderOrders, setRiderOrders] = useState<any[]>([]);
+  const [riderLoading, setRiderLoading] = useState(false);
+  const [updatingId, setUpdatingId] = useState<string | null>(null);
+
+  const RIDER_STATUS_FILTERS = [
+    { key: "pending", label: "Pending" },
+    { key: "shipped", label: "In Transit" },
+    { key: "delivered", label: "Delivered" },
+  ];
+  const RIDER_NEXT_STATUS: Record<string, { label: string; value: string }> = {
+    pending: { label: "Mark Picked Up", value: "shipped" },
+    shipped: { label: "Mark Delivered", value: "delivered" },
+  };
+  const RIDER_STATUS_COLOR: Record<string, string> = {
+    pending: "#F59E0B",
+    shipped: "#8B5CF6",
+    delivered: "#10B981",
+  };
+
+  // --- Vendor product orders ---
+  const [vendorOrders, setVendorOrders] = useState<any[]>([]);
+  const [vendorOrdersLoading, setVendorOrdersLoading] = useState(false);
+  const [packagingId, setPackagingId] = useState<string | null>(null);
+  const [orderFilter, setOrderFilter] = useState<"all" | "pending" | "packaged" | "shipped" | "delivered">("all");
+  const ORDER_STATUS_COLOR: Record<string, string> = {
+    pending: "#F59E0B",
+    packaged: "#8B5CF6",
+    shipped: "#3B82F6",
+    delivered: "#10B981",
+  };
+  const ORDER_STATUS_FILTERS = [
+    { key: "all", label: "All" },
+    { key: "pending", label: "Pending" },
+    { key: "packaged", label: "Packaged" },
+    { key: "shipped", label: "Shipped" },
+    { key: "delivered", label: "Delivered" },
+  ];
+
+  useEffect(() => {
+    if (user?.role !== "rider") return;
+    let sub: Location.LocationSubscription | null = null;
+    const start = async () => {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== "granted") return;
+      sub = await Location.watchPositionAsync(
+        {
+          accuracy: Location.Accuracy.Balanced,
+          timeInterval: 30000,
+          distanceInterval: 50,
+        },
+        (loc) => {
+          updateRiderLocation(loc.coords.latitude, loc.coords.longitude).catch(
+            () => {},
+          );
+        },
+      );
+    };
+    start();
+    return () => {
+      sub?.remove();
+    };
+  }, [user?.role]);
+
+  const fetchRiderOrders = useCallback(async () => {
+    if (!user?.id || user.role !== "rider") return;
+    try {
+      setRiderLoading(true);
+      const res = await getRiderOrders(user.id, riderFilter);
+      setRiderOrders((res as any).data ?? []);
+    } catch {
+      setRiderOrders([]);
+    } finally {
+      setRiderLoading(false);
+    }
+  }, [user?.id, user?.role, riderFilter]);
+
+  useEffect(() => {
+    fetchRiderOrders();
+  }, [fetchRiderOrders]);
+
+  useEffect(() => {
+    if (user?.role !== "businessOwner" || state !== "orders") return;
+    const fetchVendorOrders = async () => {
+      try {
+        setVendorOrdersLoading(true);
+        const res = await getVendorOrders();
+        setVendorOrders(Array.isArray(res) ? res : []);
+      } catch {
+        setVendorOrders([]);
+      } finally {
+        setVendorOrdersLoading(false);
+      }
+    };
+    fetchVendorOrders();
+  }, [user?.role, state]);
+
+  const handleMarkPackaged = async (orderId: string) => {
+    try {
+      setPackagingId(orderId);
+      await markOrderAsPackaged(orderId);
+      setVendorOrders((prev) =>
+        prev.map((o) => (o.id === orderId ? { ...o, status: "packaged" } : o)),
+      );
+    } catch {
+      Alert.alert("Error", "Failed to mark order as packaged.");
+    } finally {
+      setPackagingId(null);
+    }
+  };
+
+  const filteredVendorOrders = useMemo(() => {
+    if (orderFilter === "all") return vendorOrders;
+    return vendorOrders.filter((o) => o.status === orderFilter);
+  }, [vendorOrders, orderFilter]);
+
+  const filteredBookings = useMemo(() => {
+    if (filter === "all") return upcoming;
+    if (filter === "upcoming") return upcoming.filter((b) => b.status === "pending" || b.status === "confirmed");
+    return upcoming.filter((b) => b.status === filter);
+  }, [upcoming, filter]);
+
+  const handleRiderStatusUpdate = async (
+    orderId: string,
+    nextStatus: string,
+  ) => {
+    try {
+      setUpdatingId(orderId);
+      await updateRiderOrderStatus(orderId, nextStatus);
+      await fetchRiderOrders();
+    } catch {
+      Alert.alert("Error", "Failed to update order status.");
+    } finally {
+      setUpdatingId(null);
+    }
+  };
+
+  if (user?.role === "rider") {
+    return (
+      <SafeAreaView
+        className="flex-1 bg-[#F8F8FF]"
+        style={{ paddingTop: Platform.OS === "android" ? 10 : 0 }}
+      >
+        <View className="px-4 py-3 flex flex-row justify-between items-center border-b border-[#F3F3F3]">
+          <Text
+            className="text-[20px] text-[#050404]"
+            style={{ fontFamily: "Manrope_700Bold" }}
+          >
+            My Deliveries
+          </Text>
+        </View>
+        <View className="mx-4 mt-3 mb-3 flex flex-row p-[2px] border border-[#FFD2EE59] bg-[#FFF1F9] rounded-[6px]">
+          {RIDER_STATUS_FILTERS.map((f) => (
+            <Pressable
+              key={f.key}
+              onPress={() => setRiderFilter(f.key)}
+              className={`flex-1 py-[6px] rounded-[6px] ${riderFilter === f.key ? "bg-[#FF6EC7]" : "bg-transparent"}`}
+            >
+              <Text
+                className={`text-center text-[13px] ${riderFilter === f.key ? "text-white" : "text-[#373636]"}`}
+                style={{ fontFamily: "Manrope_600SemiBold" }}
+              >
+                {f.label}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+        {riderLoading ? (
+          <View className="flex-1 justify-center items-center">
+            <ActivityIndicator size="large" color="#FF6EC7" />
+          </View>
+        ) : (
+          <FlatList
+            data={riderOrders}
+            keyExtractor={(item) => item.id}
+            contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 24 }}
+            onRefresh={fetchRiderOrders}
+            refreshing={riderLoading}
+            ListEmptyComponent={
+              <EmptyList
+                message={`No ${riderFilter === "shipped" ? "in-transit" : riderFilter} deliveries`}
+              />
+            }
+            renderItem={({ item }) => {
+              const images =
+                item.cart
+                  ?.map((c: any) => c.product?.images?.[0])
+                  .filter(Boolean) ?? [];
+              const next = RIDER_NEXT_STATUS[item.status];
+              const statusColor = RIDER_STATUS_COLOR[item.status] ?? "#6B7280";
+              return (
+                <View
+                  className="bg-white rounded-[12px] mb-3 overflow-hidden"
+                  style={{
+                    shadowColor: "#000",
+                    shadowOffset: { width: 0, height: 1 },
+                    shadowOpacity: 0.08,
+                    shadowRadius: 4,
+                    elevation: 3,
+                  }}
+                >
+                  <View className="flex flex-row items-center justify-between px-4 pt-4 pb-2">
+                    <View>
+                      <Text
+                        className="text-[13px] text-[#050404]"
+                        style={{ fontFamily: "Manrope_700Bold" }}
+                      >
+                        Order {item.orderId}
+                      </Text>
+                      <Text
+                        className="text-[11px] text-[#585757] mt-[2px]"
+                        style={{ fontFamily: "Manrope_400Regular" }}
+                      >
+                        {item.cart?.length ?? 0} item
+                        {(item.cart?.length ?? 0) !== 1 ? "s" : ""}
+                      </Text>
+                    </View>
+                    <View
+                      className="px-3 py-1 rounded-full"
+                      style={{ backgroundColor: statusColor + "20" }}
+                    >
+                      <Text
+                        className="text-[11px] capitalize"
+                        style={{
+                          color: statusColor,
+                          fontFamily: "Manrope_600SemiBold",
+                        }}
+                      >
+                        {item.status}
+                      </Text>
+                    </View>
+                  </View>
+                  {images.length > 0 && (
+                    <View className="flex flex-row gap-[6px] px-4 pb-3">
+                      {images.slice(0, 4).map((uri: string, idx: number) => (
+                        <View
+                          key={idx}
+                          className="w-[48px] h-[48px] rounded-[8px] overflow-hidden bg-[#F3F3F3]"
+                        >
+                          <Image
+                            source={{ uri }}
+                            style={{ width: "100%", height: "100%" }}
+                            resizeMode="cover"
+                          />
+                        </View>
+                      ))}
+                    </View>
+                  )}
+                  <View className="flex flex-row items-center justify-between px-4 py-3 border-t border-[#F3F3F3]">
+                    <Text
+                      className="text-[12px] text-[#585757]"
+                      style={{ fontFamily: "Manrope_400Regular" }}
+                      numberOfLines={2}
+                    >
+                      {item.deliveryAddress}
+                    </Text>
+                    {next && (
+                      <Pressable
+                        onPress={() =>
+                          handleRiderStatusUpdate(item.id, next.value)
+                        }
+                        disabled={updatingId === item.id}
+                        className="bg-[#F6339A] ml-2 px-3 py-[8px] rounded-[8px] flex flex-row items-center gap-[4px]"
+                        style={{ opacity: updatingId === item.id ? 0.6 : 1 }}
+                      >
+                        {updatingId === item.id ? (
+                          <ActivityIndicator size="small" color="#fff" />
+                        ) : null}
+                        <Text
+                          className="text-white text-[12px]"
+                          style={{ fontFamily: "Manrope_600SemiBold" }}
+                        >
+                          {next.label}
+                        </Text>
+                      </Pressable>
+                    )}
+                  </View>
+                </View>
+              );
+            }}
+          />
+        )}
+      </SafeAreaView>
+    );
+  }
+  // ────────────────────────────────────────────────────────────────────────
+
   if (loading)
     return (
       <View style={styles.loaderContainer}>
@@ -525,7 +824,7 @@ export default function Tab() {
                         color="black"
                       />
                     }
-                    value="8"
+                    value="—"
                     label="Messages"
                   />
                 </View>
@@ -541,7 +840,7 @@ export default function Tab() {
                   scrollEnabled={false}
                   numColumns={1}
                   horizontal={false}
-                  data={upcoming?.slice(-3)}
+                  data={upcoming?.slice(0, 3)}
                   renderItem={({ item }) => (
                     <UpcomingBooking
                       status={item.status}
@@ -552,7 +851,7 @@ export default function Tab() {
                       price={item?.servicePrice}
                     />
                   )}
-                  keyExtractor={(item) => item._id}
+                  keyExtractor={(item) => item.id ?? item._id}
                   ListEmptyComponent={
                     <EmptyList message="You have no upcoming bookings" />
                   }
@@ -664,7 +963,7 @@ export default function Tab() {
                 scrollEnabled={false}
                 numColumns={1}
                 horizontal={false}
-                data={upcoming}
+                data={filteredBookings}
                 renderItem={({ item }) => (
                   <Booking
                     fullname={item.customerId.fullName}
@@ -681,9 +980,9 @@ export default function Tab() {
                     }}
                   />
                 )}
-                keyExtractor={(item) => item._id}
+                keyExtractor={(item) => item.id ?? item._id}
                 ListEmptyComponent={
-                  <EmptyList message="You have no upcoming bookings" />
+                  <EmptyList message="No bookings found" />
                 }
               />
             </View>
@@ -746,12 +1045,140 @@ export default function Tab() {
                   Top Services
                 </Text>
 
-                <InfoRow
-                  title="Hair Styling"
-                  subtitle="Most booked services"
-                  rightText={5400}
-                />
+                {bookingStats?.topServices?.length > 0 ? (
+                  bookingStats.topServices.map((s: any, idx: number) => (
+                    <InfoRow
+                      key={idx}
+                      title={s.name ?? s.title ?? "Service"}
+                      subtitle="Most booked"
+                      rightText={s.count ?? s.total ?? 0}
+                    />
+                  ))
+                ) : (
+                  <EmptyList message="No service data yet" />
+                )}
               </View>
+            </View>
+          )}
+          {user && user.role === "businessOwner" && state === "orders" && (
+            <View className="px-4 pt-4 flex flex-col gap-[16px]">
+              {/* Order status filter */}
+              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                <View className="flex flex-row gap-[8px] pb-1">
+                  {ORDER_STATUS_FILTERS.map((f) => {
+                    const active = orderFilter === f.key;
+                    return (
+                      <Pressable
+                        key={f.key}
+                        onPress={() => setOrderFilter(f.key as any)}
+                        className={`rounded-[10px] h-[36px] px-[12px] flex items-center justify-center ${
+                          active ? "bg-[#F6339A]" : "bg-white border border-[#E5E7EB]"
+                        }`}
+                      >
+                        <Text
+                          className={`text-[13px] ${active ? "text-white" : "text-[#4A5565]"}`}
+                          style={{ fontFamily: "Manrope_500Medium" }}
+                        >
+                          {f.label}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </ScrollView>
+              {vendorOrdersLoading ? (
+                <View className="py-12 items-center">
+                  <ActivityIndicator size="large" color="#FF6EC7" />
+                </View>
+              ) : (
+                <FlatList
+                  scrollEnabled={false}
+                  data={filteredVendorOrders}
+                  keyExtractor={(item) => item.id ?? item._id}
+                  ListEmptyComponent={<EmptyList message="No orders found" />}
+                  renderItem={({ item }) => {
+                    const statusColor = ORDER_STATUS_COLOR[item.status] ?? "#6B7280";
+                    const isPending = item.status === "pending";
+                    return (
+                      <View
+                        className="bg-white rounded-[12px] mb-3 overflow-hidden"
+                        style={{
+                          shadowColor: "#000",
+                          shadowOffset: { width: 0, height: 1 },
+                          shadowOpacity: 0.08,
+                          shadowRadius: 4,
+                          elevation: 3,
+                        }}
+                      >
+                        <View className="flex flex-row items-center justify-between px-4 pt-4 pb-2">
+                          <View>
+                            <Text
+                              className="text-[13px] text-[#050404]"
+                              style={{ fontFamily: "Manrope_700Bold" }}
+                            >
+                              {item.orderId}
+                            </Text>
+                            <Text
+                              className="text-[11px] text-[#585757] mt-[2px]"
+                              style={{ fontFamily: "Manrope_400Regular" }}
+                            >
+                              {item.customer?.fullName ?? "Customer"}
+                            </Text>
+                          </View>
+                          <View
+                            className="px-3 py-1 rounded-full"
+                            style={{ backgroundColor: statusColor + "20" }}
+                          >
+                            <Text
+                              className="text-[11px] capitalize"
+                              style={{ color: statusColor, fontFamily: "Manrope_600SemiBold" }}
+                            >
+                              {item.status}
+                            </Text>
+                          </View>
+                        </View>
+                        <View className="px-4 pb-3">
+                          {item.cart?.map((c: any, idx: number) => (
+                            <Text
+                              key={idx}
+                              className="text-[12px] text-[#585757]"
+                              style={{ fontFamily: "Manrope_400Regular" }}
+                            >
+                              {c.product?.title ?? "Product"} × {c.count}
+                            </Text>
+                          ))}
+                        </View>
+                        <View className="flex flex-row items-center justify-between px-4 py-3 border-t border-[#F3F3F3]">
+                          <Text
+                            className="text-[13px] text-[#050404]"
+                            style={{ fontFamily: "Manrope_600SemiBold" }}
+                          >
+                            ₦{item.totalAmount?.toLocaleString() ?? "0"}
+                          </Text>
+                          {isPending && (
+                            <Pressable
+                              onPress={() => handleMarkPackaged(item.id ?? item._id)}
+                              disabled={packagingId === (item.id ?? item._id)}
+                              className="bg-[#8B5CF6] px-3 py-[8px] rounded-[8px] flex flex-row items-center gap-[4px]"
+                              style={{ opacity: packagingId === (item.id ?? item._id) ? 0.6 : 1 }}
+                            >
+                              {packagingId === (item.id ?? item._id) ? (
+                                <ActivityIndicator size="small" color="#fff" />
+                              ) : null}
+                              <Text
+                                className="text-white text-[12px]"
+                                style={{ fontFamily: "Manrope_600SemiBold" }}
+                              >
+                                Mark Packaged
+                              </Text>
+                            </Pressable>
+                          )}
+                        </View>
+                      </View>
+                    );
+                  }}
+                />
+              )}
             </View>
           )}
         </ScrollView>

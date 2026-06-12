@@ -6,13 +6,11 @@ import {
   FlatList,
   Image,
   Platform,
-  ScrollView,
+  ActivityIndicator,
   TextInput,
 } from "react-native";
 import {
-  Feather,
   Ionicons,
-  MaterialCommunityIcons,
   Octicons,
 } from "@expo/vector-icons";
 import { RadioButton } from "react-native-paper";
@@ -29,9 +27,8 @@ import {
   toggleSelect,
 } from "@/components/store/slice/cartSlice";
 import { RootState } from "@/components/store/store";
-import { formatNumberToThousands, StatCardThree } from "@/components/reusables";
-import { Chat, Payments } from "@/components/flatListItems/items";
-import { getProducts } from "@/services/api/request";
+import { formatNumberToThousands, EmptyList, formatShortDate } from "@/components/reusables";
+import { getProducts, getServiceProvider, getUpcomingBookings } from "@/services/api/request";
 import { router } from "expo-router";
 import { useAuth } from "@/components/AuthContext";
 
@@ -46,8 +43,10 @@ type ItemProps = {
 
 export default function Cart() {
   const [loading, setLoading] = useState(true);
-  const [role, setRole] = useState<string>("customer");
   const [products, setProducts] = useState<any[]>([]);
+  const [vendorBookings, setVendorBookings] = useState<any[]>([]);
+  const [vendorBookingsLoading, setVendorBookingsLoading] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
   const { user, isAuthenticated, logout } = useAuth();
 
   const selectedItems = useAppSelector(
@@ -176,22 +175,48 @@ export default function Cart() {
   };
 
   useEffect(() => {
+    if (!user || user.role !== "customer") return;
     const fetchData = async () => {
       try {
         setLoading(true);
-
-        const [productsRes] = await Promise.all([getProducts(10)]);
-
+        const productsRes = await getProducts(10);
         setProducts(productsRes?.data ?? []);
-      } catch (err) {
-        console.error("Failed to load data", err);
+      } catch {
+        // ignore
       } finally {
         setLoading(false);
       }
     };
-
     fetchData();
-  }, []);
+  }, [user?.role]);
+
+  useEffect(() => {
+    if (user?.role !== "businessOwner") return;
+    const fetchVendorBookings = async () => {
+      try {
+        setVendorBookingsLoading(true);
+        const provider = await getServiceProvider();
+        if (!provider?.id) return;
+        const bookings = await getUpcomingBookings(provider.id);
+        setVendorBookings(Array.isArray(bookings) ? bookings : []);
+      } catch {
+        setVendorBookings([]);
+      } finally {
+        setVendorBookingsLoading(false);
+      }
+    };
+    fetchVendorBookings();
+  }, [user?.role]);
+
+  const filteredVendorBookings = useMemo(() => {
+    if (!searchQuery.trim()) return vendorBookings;
+    const q = searchQuery.toLowerCase();
+    return vendorBookings.filter(
+      (b) =>
+        b.customerId?.fullName?.toLowerCase().includes(q) ||
+        b.description?.toLowerCase().includes(q),
+    );
+  }, [vendorBookings, searchQuery]);
 
   return (
     <SafeAreaView
@@ -281,33 +306,125 @@ export default function Cart() {
         </View>
       )}
       {user && user?.role === "businessOwner" && (
-        <View>
-          <View className="bg-[#F9FAFB] px-4 flex flex-col ">
-            <View className="py-[16px] border-[#E5E7EB] border-b-[1px]">
-              <View className="h-[50.43px] bg-[#F9FAFB]  flex-row items-center px-[16px] w-full border-[#E5E7EB] border-[1px] rounded-[10px]">
-                <Octicons name="search" size={24} color="#B2B1B1" />
-                <TextInput
-                  placeholder="Search Conversations..."
-                  placeholderTextColor="#B2B1B1"
-                  className="flex-1 mx-[8px]"
-                />
-              </View>
+        <View className="flex-1 bg-[#F9FAFB]">
+          {/* Search */}
+          <View className="px-4 py-3 border-b border-[#E5E7EB]">
+            <View className="h-[50px] bg-white flex-row items-center px-4 border border-[#E5E7EB] rounded-[10px]">
+              <Octicons name="search" size={20} color="#B2B1B1" />
+              <TextInput
+                placeholder="Search conversations..."
+                placeholderTextColor="#B2B1B1"
+                className="flex-1 mx-[8px] text-[14px]"
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+              />
             </View>
+          </View>
+
+          {vendorBookingsLoading ? (
+            <View className="flex-1 justify-center items-center">
+              <ActivityIndicator size="large" color="#FF6EC7" />
+            </View>
+          ) : (
             <FlatList
               showsVerticalScrollIndicator={false}
-              data={products?.slice(-3)}
-              keyExtractor={(item) => item.id}
-              renderItem={({ item }) => (
-                <Chat
-                  title={item.title}
-                  image={item.coverImage}
-                  description={item.description}
-                  price={item.price}
-                />
-              )}
-              contentContainerStyle={{ paddingBottom: 200 }}
+              data={filteredVendorBookings}
+              keyExtractor={(item) => item.id ?? item._id}
+              contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 32, paddingTop: 8 }}
+              ListEmptyComponent={
+                <EmptyList message="No conversations yet. Customers will appear here once they book your services." />
+              }
+              renderItem={({ item }) => {
+                const customerName = item.customerId?.fullName ?? "Customer";
+                const avatarUrl = item.customerId?.avatarURL;
+                const initials = customerName
+                  .split(" ")
+                  .map((w: string) => w[0])
+                  .join("")
+                  .toUpperCase()
+                  .slice(0, 2);
+                const statusColor =
+                  item.status === "completed"
+                    ? "#10B981"
+                    : item.status === "cancelled"
+                      ? "#EF4444"
+                      : "#F59E0B";
+
+                return (
+                  <Pressable
+                    onPress={() =>
+                      router.push({
+                        pathname: "/chat",
+                        params: {
+                          bookingId: item.id ?? item._id,
+                          providerName: customerName,
+                          serviceType: item.description ?? "Booking",
+                          bookingRef: item.id ?? item._id,
+                          avatarUrl: avatarUrl ?? "",
+                        },
+                      })
+                    }
+                    className="flex-row items-center gap-3 py-4 border-b border-[#F3F4F6]"
+                  >
+                    {/* Avatar */}
+                    {avatarUrl ? (
+                      <Image
+                        source={{ uri: avatarUrl }}
+                        className="w-12 h-12 rounded-full"
+                      />
+                    ) : (
+                      <View className="w-12 h-12 rounded-full bg-[#FF6EC7] items-center justify-center">
+                        <Text
+                          className="text-white text-[16px]"
+                          style={{ fontFamily: "Manrope_700Bold" }}
+                        >
+                          {initials}
+                        </Text>
+                      </View>
+                    )}
+
+                    {/* Info */}
+                    <View className="flex-1">
+                      <View className="flex-row justify-between items-center">
+                        <Text
+                          className="text-[15px] text-[#101828]"
+                          style={{ fontFamily: "Manrope_600SemiBold" }}
+                        >
+                          {customerName}
+                        </Text>
+                        <Text
+                          className="text-[11px] text-[#9CA3AF]"
+                          style={{ fontFamily: "Manrope_400Regular" }}
+                        >
+                          {formatShortDate(item.appointmentDate)}
+                        </Text>
+                      </View>
+                      <View className="flex-row justify-between items-center mt-[2px]">
+                        <Text
+                          className="text-[13px] text-[#6A7282]"
+                          style={{ fontFamily: "Manrope_400Regular" }}
+                          numberOfLines={1}
+                        >
+                          {item.description ?? "Tap to open chat"}
+                        </Text>
+                        <View
+                          className="px-2 py-[2px] rounded-full"
+                          style={{ backgroundColor: statusColor + "20" }}
+                        >
+                          <Text
+                            className="text-[10px] capitalize"
+                            style={{ color: statusColor, fontFamily: "Manrope_500Medium" }}
+                          >
+                            {item.status}
+                          </Text>
+                        </View>
+                      </View>
+                    </View>
+                  </Pressable>
+                );
+              }}
             />
-          </View>
+          )}
         </View>
       )}
     </SafeAreaView>

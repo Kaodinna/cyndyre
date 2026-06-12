@@ -21,7 +21,10 @@ import {
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   createBooking,
+  getBookingsForCustomer,
   getProducts,
+  getProviderAvailableDates,
+  getProviderAvailableTimes,
   getServiceProviderById,
   getServicesByServiceProviderId,
   servicePayment,
@@ -49,6 +52,13 @@ import { router, useLocalSearchParams } from "expo-router";
 import BottomSheet from "@/components/bottomSheet";
 import { useAuth } from "@/components/AuthContext";
 import * as WebBrowser from "expo-web-browser";
+
+function to12h(time24: string): string {
+  const [h, m] = time24.split(":").map(Number);
+  const period = h >= 12 ? "PM" : "AM";
+  const hour = h % 12 === 0 ? 12 : h % 12;
+  return `${String(hour).padStart(2, "0")}:${String(m).padStart(2, "0")} ${period}`;
+}
 
 interface ServiceItem {
   serviceId: string;
@@ -90,6 +100,11 @@ export default function Tab() {
   const [showSuccess, setShowSuccess] = useState(false);
   const [products, setProducts] = useState<ProductPropsType[]>();
   const [limit, setLimit] = useState(10);
+  const [openChatLoading, setOpenChatLoading] = useState(false);
+  const [availableDates, setAvailableDates] = useState<{ date: string; isAvailable: boolean }[]>([]);
+  const [availableTimes, setAvailableTimes] = useState<string[]>([]);
+  const [datesLoading, setDatesLoading] = useState(false);
+  const [timesLoading, setTimesLoading] = useState(false);
 
   const { id } = useLocalSearchParams();
 
@@ -158,6 +173,47 @@ export default function Tab() {
       mounted = false;
     };
   }, [limit]);
+
+  // Load available dates for next 60 days when step 2 is reached
+  useEffect(() => {
+    if (state !== 2 || !id) return;
+    const loadDates = async () => {
+      try {
+        setDatesLoading(true);
+        const today = new Date();
+        const end = new Date();
+        end.setDate(today.getDate() + 60);
+        const startStr = today.toISOString().split("T")[0];
+        const endStr = end.toISOString().split("T")[0];
+        const result = await getProviderAvailableDates(id as string, startStr, endStr);
+        setAvailableDates(result.map((d) => ({ date: d.date, isAvailable: d.isAvailable })));
+      } catch {
+        setAvailableDates([]);
+      } finally {
+        setDatesLoading(false);
+      }
+    };
+    loadDates();
+  }, [state, id]);
+
+  // Load available times when a date is selected
+  useEffect(() => {
+    if (!date || !id) return;
+    const loadTimes = async () => {
+      try {
+        setTimesLoading(true);
+        setSelectedTime(null);
+        const result = await getProviderAvailableTimes(id as string, date);
+        setAvailableTimes(result.availableTimes ?? []);
+      } catch {
+        setAvailableTimes([]);
+      } finally {
+        setTimesLoading(false);
+      }
+    };
+    loadTimes();
+  }, [date, id]);
+
   const handleSubmit = async () => {
     setLoading(true);
 
@@ -346,6 +402,47 @@ export default function Tab() {
   const handleBack = () => {
     setState((prev) => Math.max(1, prev - 1));
   };
+
+  const handleOpenChat = async () => {
+    if (!user) {
+      router.push("/login");
+      return;
+    }
+    try {
+      setOpenChatLoading(true);
+      const bookings = await getBookingsForCustomer([
+        "pending",
+        "confirmed",
+        "payment_pending",
+        "rescheduled",
+        "completed",
+      ]);
+      const booking = bookings?.find(
+        (b: any) => b.providerId?._id === id || b.providerId === id,
+      );
+      if (!booking) {
+        Alert.alert(
+          "No Booking Found",
+          "You need to book a service with this provider before you can chat.",
+        );
+        return;
+      }
+      router.push({
+        pathname: "/chat",
+        params: {
+          bookingId: booking._id,
+          providerName: serviceProvider?.businessName,
+          serviceType: booking.services?.[0]?.serviceId?.name ?? "Service",
+          bookingRef: booking._id,
+          avatarUrl: serviceProvider?.images?.[0] ?? "",
+        },
+      });
+    } catch {
+      Alert.alert("Error", "Could not open chat. Please try again.");
+    } finally {
+      setOpenChatLoading(false);
+    }
+  };
   if (pageLoading || loading) {
     return (
       <View style={styles.loaderContainer}>
@@ -436,14 +533,25 @@ export default function Tab() {
             </View>
 
             <View className="flex flex-row gap-[12px] justify-between w-full">
-              <Pressable className="bg-[#00C950] rounded-[42px] h-[44px] flex items-center justify-center px-[12px] flex-row gap-[8px]">
-                <Ionicons name="chatbubble-outline" size={16} color="white" />
-                <Text
-                  className="text-[16px]  text-[#ffffff]"
-                  style={{ fontFamily: "Manrope_600SemiBold" }}
-                >
-                  Open chat
-                </Text>
+              <Pressable
+                onPress={handleOpenChat}
+                disabled={openChatLoading}
+                className="bg-[#00C950] rounded-[42px] h-[44px] flex items-center justify-center px-[12px] flex-row gap-[8px]"
+                style={{ opacity: openChatLoading ? 0.6 : 1 }}
+              >
+                {openChatLoading ? (
+                  <ActivityIndicator size="small" color="white" />
+                ) : (
+                  <>
+                    <Ionicons name="chatbubble-outline" size={16} color="white" />
+                    <Text
+                      className="text-[16px]  text-[#ffffff]"
+                      style={{ fontFamily: "Manrope_600SemiBold" }}
+                    >
+                      Open chat
+                    </Text>
+                  </>
+                )}
               </Pressable>
               {user ? (
                 <Pressable
@@ -742,11 +850,27 @@ export default function Tab() {
         )}
         {state === 2 && (
           <View>
-            <CalendarPicker value={date} onSelect={(d) => setDate(d)} />
-            <TimeSlotGrid
-              value={selectedTime}
-              onSelect={(time) => setSelectedTime(time)}
+            <CalendarPicker
+              value={date}
+              onSelect={(d) => setDate(d)}
+              availableDates={availableDates}
+              loading={datesLoading}
             />
+            {date && (
+              <TimeSlotGrid
+                value={selectedTime}
+                onSelect={(time) => setSelectedTime(time)}
+                slots={availableTimes}
+                loading={timesLoading}
+              />
+            )}
+            {!date && !datesLoading && (
+              <View style={{ padding: 16, alignItems: "center" }}>
+                <Text style={{ color: "#9CA3AF", fontSize: 13 }}>
+                  Select an available date to see time slots.
+                </Text>
+              </View>
+            )}
           </View>
         )}
         {state === 3 && (
@@ -831,7 +955,7 @@ export default function Tab() {
                 <InfoRowText
                   icon={<Feather name="calendar" size={20} color="#6A7282" />}
                   label="Date & Time"
-                  value={`${date}  ${selectedTime}`}
+                  value={`${date}  ${selectedTime ? to12h(selectedTime) : ""}`}
                 />
                 <InfoRowText
                   icon={

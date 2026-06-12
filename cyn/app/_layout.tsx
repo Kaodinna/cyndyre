@@ -380,6 +380,12 @@ export default function RootLayout() {
                   name="productCategory/[id]"
                   options={{ headerShown: false }}
                 />
+                <JsStack.Screen
+                  name="riderDeliveries"
+                  options={{
+                    headerShown: false,
+                  }}
+                />
               </JsStack>
             </PersistGate>
           </Provider>
