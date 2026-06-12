@@ -384,6 +384,38 @@ export const markAllNotificationsRead = async () => {
   return response.data;
 };
 
+export const getProviderAvailability = async (providerId: string) => {
+  const response = await apiGetRequest<{ data: any[] }>(
+    `/provider-availability/provider/${providerId}`,
+  );
+  return (response.data as any).data ?? [];
+};
+
+export const createProviderAvailability = async (data: {
+  dayOfWeek: number;
+  startTime: string;
+  endTime: string;
+  isAvailable: boolean;
+  specificDate?: string;
+  notes?: string;
+}) => {
+  const response = await apiPost<{ data: any }>(`/provider-availability`, data);
+  return response.data;
+};
+
+export const updateProviderAvailability = async (
+  id: string,
+  data: { startTime?: string; endTime?: string; isAvailable?: boolean; notes?: string },
+) => {
+  const response = await apiPatch<{ data: any }>(`/provider-availability/${id}`, data);
+  return response.data;
+};
+
+export const deleteProviderAvailability = async (id: string) => {
+  const response = await apiDelete<{ data: any }>(`/provider-availability/${id}`);
+  return response.data;
+};
+
 export const createWithdrawalRequest = async (amount: number) => {
   const response = await apiPost<{ data: any }>(`/withdrawal-requests`, { amount });
   return response.data;

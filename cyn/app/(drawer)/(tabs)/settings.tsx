@@ -18,6 +18,7 @@ import { useAuth } from "@/components/AuthContext";
 export default function Tab() {
   const { user } = useAuth();
   const isRider = user?.role === "rider";
+  const isProvider = user?.role === "businessOwner";
 
   type MenuItem = {
     id: string;
@@ -30,19 +31,31 @@ export default function Tab() {
     data: MenuItem[];
   };
 
-  const personalItems: MenuItem[] = [
-    { id: "1", title: "Profile", link: "/profile" },
-    ...(isRider ? [] : [
-      { id: "3", title: "Shipping Address", link: "/shippingAddress" as Href },
-      { id: "4", title: "Payment Methods" },
-      { id: "5", title: "Period Tracker", link: "/periodTrackerScreen" as Href },
-    ]),
-  ];
+  const personalItems: MenuItem[] = isProvider
+    ? [
+        { id: "1", title: "Profile", link: "/serviceProviderProfile" as Href },
+        { id: "2", title: "Availability", link: "/availabilityScreen" as Href },
+        { id: "3", title: "Withdrawal Bank", link: "/banks" as Href },
+      ]
+    : [
+        { id: "1", title: "Profile", link: "/profile" },
+        ...(isRider ? [] : [
+          { id: "3", title: "Shipping Address", link: "/shippingAddress" as Href },
+          { id: "4", title: "Payment Methods" },
+          { id: "5", title: "Period Tracker", link: "/periodTrackerScreen" as Href },
+        ]),
+      ];
 
   const activityItems: MenuItem[] = isRider
     ? [
         { id: "1", title: "My Deliveries", link: "/riderDeliveries" as Href },
         { id: "2", title: "Help Center" },
+      ]
+    : isProvider
+    ? [
+        { id: "1", title: "Help Center" },
+        { id: "2", title: "Privacy Policy" },
+        { id: "3", title: "Terms and Conditions" },
       ]
     : [
         { id: "1", title: "My Orders", link: "/myOrders" as Href },
@@ -56,7 +69,7 @@ export default function Tab() {
   const Data: Section[] = [
     { title: "Settings", data: [] },
     { title: "Personal", data: personalItems },
-    { title: isRider ? "Deliveries" : "Shop", data: activityItems },
+    { title: isRider ? "Deliveries" : isProvider ? "Business" : "Shop", data: activityItems },
   ];
 
   return (

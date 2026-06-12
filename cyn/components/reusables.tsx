@@ -1108,12 +1108,16 @@ type TimeField = "start" | "end";
 
 type Propz = {
   day: string;
+  initialEnabled?: boolean;
+  initialStartTime?: Date;
+  initialEndTime?: Date;
+  onChange?: (enabled: boolean, startTime: Date, endTime: Date) => void;
 };
 
-export function WorkingHourRow({ day }: Propz) {
-  const [enabled, setEnabled] = useState(false);
-  const [startTime, setStartTime] = useState(new Date());
-  const [endTime, setEndTime] = useState(new Date());
+export function WorkingHourRow({ day, initialEnabled = false, initialStartTime, initialEndTime, onChange }: Propz) {
+  const [enabled, setEnabled] = useState(initialEnabled);
+  const [startTime, setStartTime] = useState(initialStartTime ?? new Date());
+  const [endTime, setEndTime] = useState(initialEndTime ?? new Date());
 
   const [pickerVisible, setPickerVisible] = useState(false);
   const [activeField, setActiveField] = useState<TimeField | null>(null);
@@ -1135,8 +1139,12 @@ export function WorkingHourRow({ day }: Propz) {
       return;
     }
 
-    if (activeField === "start") setStartTime(selectedDate);
-    if (activeField === "end") setEndTime(selectedDate);
+    let newStart = startTime;
+    let newEnd = endTime;
+    if (activeField === "start") { setStartTime(selectedDate); newStart = selectedDate; }
+    if (activeField === "end") { setEndTime(selectedDate); newEnd = selectedDate; }
+
+    onChange?.(enabled, newStart, newEnd);
 
     if (Platform.OS === "android") {
       setPickerVisible(false);
@@ -1149,7 +1157,7 @@ export function WorkingHourRow({ day }: Propz) {
       <View className="flex-row items-center justify-between mb-3">
         {/* Checkbox + Day */}
         <Pressable
-          onPress={() => setEnabled(!enabled)}
+          onPress={() => { const next = !enabled; setEnabled(next); onChange?.(next, startTime, endTime); }}
           className="flex-row items-center gap-2"
         >
           <Feather
@@ -1222,12 +1230,12 @@ export function WorkingHourRow({ day }: Propz) {
   );
 }
 
-export function UnavailableDateRow({ date }: { date: string }) {
+export function UnavailableDateRow({ date, onDelete }: { date: string; onDelete?: () => void }) {
   return (
     <View className="flex-row items-center justify-between py-2">
       <Text className="text-[13px] text-gray-700">{date}</Text>
 
-      <TouchableOpacity>
+      <TouchableOpacity onPress={onDelete}>
         <Feather name="x" size={16} color="#EF4444" />
       </TouchableOpacity>
     </View>
