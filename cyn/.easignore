@@ -1,0 +1,4 @@
+# Exclude macOS-generated lockfile so EAS uses npm install on Linux
+# This ensures platform-specific native binaries (e.g. lightningcss-linux-x64-gnu)
+# are installed correctly on the EAS build server.
+package-lock.json
