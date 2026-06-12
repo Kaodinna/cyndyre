@@ -955,41 +955,50 @@ export const Chat = ({ title, image, description, price }: ProductProps) => {
 export const Listing = ({
   name,
   image,
+  rating,
   totalRatings,
-
   address,
   id,
 }: {
   name: string;
   image: string;
+  rating: number;
   totalRatings: number;
   address: string;
-
   id: string;
 }) => (
   <Link href={`/serviceProvider/${id}`} asChild>
-    <Pressable className=" flex  gap-[4px] p-[8px] bg-[#F8F8FF] w-[33%] mb-4 rounded-[6px]">
+    <Pressable className="flex gap-[6px] p-[10px] bg-white w-[48%] mb-4 rounded-[12px] border border-[#E6E6E6]">
       <Image
         source={typeof image === "string" ? { uri: image } : image}
-        className="w-full h-[98px]  rounded-[8px]"
+        className="w-full h-[110px] rounded-[8px] bg-[#F5F5F5]"
+        contentFit="cover"
       />
-      <View className="flex gap-[8px]">
+      <View className="flex gap-[4px] mt-1">
         <Text
-          className="text-[13px]  text-[#050404]"
+          className="text-[13px] text-[#050404]"
           style={{ fontFamily: "Manrope_600SemiBold" }}
+          numberOfLines={1}
         >
           {name}
         </Text>
-
-        <View>
+        {!!address && (
           <Text
-            className="text-[13px] font-[600] text-[#585757]"
-            style={{ fontFamily: "Manrope_600SemiBold" }}
+            className="text-[11px] text-[#585757]"
+            style={{ fontFamily: "Manrope_400Regular" }}
+            numberOfLines={2}
           >
-            ₦{address}
+            {address}
           </Text>
+        )}
+        <View className="flex flex-row items-center gap-1 mt-1">
+          <RatingStars rating={rating} size={12} />
+          {totalRatings > 0 && (
+            <Text className="text-[10px] text-[#8C8C8C]" style={{ fontFamily: "Manrope_400Regular" }}>
+              ({totalRatings})
+            </Text>
+          )}
         </View>
-        <RatingStars rating={totalRatings} size={14} />
       </View>
     </Pressable>
   </Link>

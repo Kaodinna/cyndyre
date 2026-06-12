@@ -223,9 +223,10 @@ export default function Tab() {
     ({ item }: any) => (
       <Listing
         name={item.businessName}
-        totalRatings={item.totalRatings}
+        rating={item.rating ?? 0}
+        totalRatings={item.totalRatings ?? 0}
         image={item.images?.[0]}
-        id={item.id}
+        id={item._id ?? item.id}
         address={item.businessAddress}
       />
     ),
@@ -729,12 +730,10 @@ export default function Tab() {
             />
 
             <FlatList
-              // horizontal
               data={serviceProvicders.slice(0, 6)}
               renderItem={renderListing}
-              numColumns={3}
-              keyExtractor={(i) => i.id ?? ""}
-              // showsHorizontalScrollIndicator={false}
+              numColumns={2}
+              keyExtractor={(i) => i._id ?? i.id ?? ""}
               scrollEnabled={false}
               columnWrapperStyle={{ justifyContent: "space-between" }}
               ListEmptyComponent={
