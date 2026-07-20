@@ -218,30 +218,60 @@ export default function SignupScreen() {
   const google = require("../assets/images/Google - Original.jpg");
   const apple = require("../assets/images/Apple - Original-2.jpg");
   const logo = require("../assets/images/logo.png");
-  const getLocation = async () => {
-    const { status } = await Location.requestForegroundPermissionsAsync();
+  const [locationLoading, setLocationLoading] = useState(false);
+  const [locationError, setLocationError] = useState<string | null>(null);
 
-    if (status !== "granted") {
-      setErrors((prev) => ({
+  const useCurrentLocation = async () => {
+    setLocationError(null);
+    setLocationLoading(true);
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+
+      if (status !== "granted") {
+        setLocationError(
+          "Location permission denied. You can enter your address manually instead.",
+        );
+        return;
+      }
+
+      const location = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.High,
+      });
+
+      setFormData((prev) => ({
         ...prev,
-        location: "Location permission denied",
+        latitude: location.coords.latitude,
+        longitude: location.coords.longitude,
       }));
-      return;
+
+      const [place] = await Location.reverseGeocodeAsync({
+        latitude: location.coords.latitude,
+        longitude: location.coords.longitude,
+      });
+
+      if (place) {
+        const matchedState = nigeriaStates.find(
+          (s) => s.value.toLowerCase() === (place.region ?? "").toLowerCase(),
+        );
+
+        setFormData((prev) => ({
+          ...prev,
+          address:
+            [place.name, place.street].filter(Boolean).join(", ") ||
+            prev.address,
+          city: place.city || place.subregion || prev.city,
+          state: matchedState ? matchedState.value : prev.state,
+          zipCode: place.postalCode || prev.zipCode,
+        }));
+      }
+    } catch (err: any) {
+      setLocationError(
+        "Could not detect your location. Please enter your address manually.",
+      );
+    } finally {
+      setLocationLoading(false);
     }
-
-    const location = await Location.getCurrentPositionAsync({
-      accuracy: Location.Accuracy.High,
-    });
-
-    setFormData((prev) => ({
-      ...prev,
-      latitude: location.coords.latitude,
-      longitude: location.coords.longitude,
-    }));
   };
-  useEffect(() => {
-    getLocation();
-  }, []);
 
   const handleSignUp = async (formData: any) => {
     const { repeatPassword, agreeToTerms, ...data } = formData;
@@ -1296,6 +1326,44 @@ export default function SignupScreen() {
                         >
                           Location Details
                         </Text>
+                        <Text
+                          className="text-[#4A5565] text-[14px]"
+                          style={{ fontFamily: "Manrope_400Regular" }}
+                        >
+                          Use your current location to auto-fill these fields,
+                          or enter your address manually below.
+                        </Text>
+                        <Pressable
+                          className="border-[#F6339A] border-[1px] h-[44px] rounded-[10px] flex flex-row justify-center items-center gap-2"
+                          onPress={useCurrentLocation}
+                          disabled={locationLoading}
+                        >
+                          {locationLoading ? (
+                            <ActivityIndicator size="small" color="#F6339A" />
+                          ) : (
+                            <Ionicons
+                              name="location-outline"
+                              size={18}
+                              color="#F6339A"
+                            />
+                          )}
+                          <Text
+                            className="text-[#F6339A] text-[14px]"
+                            style={{ fontFamily: "Manrope_500Medium" }}
+                          >
+                            {locationLoading
+                              ? "Detecting location..."
+                              : "Use My Current Location"}
+                          </Text>
+                        </Pressable>
+                        {locationError && (
+                          <Text
+                            className="text-[#FF0000] text-[12px]"
+                            style={{ fontFamily: "Manrope_400Regular" }}
+                          >
+                            {locationError}
+                          </Text>
+                        )}
                         <CustomTextInput
                           label="Address"
                           value={formData.address}

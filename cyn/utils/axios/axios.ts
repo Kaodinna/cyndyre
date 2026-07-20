@@ -1,8 +1,8 @@
 import axios, { AxiosResponse } from "axios";
 import { ApiConfig } from "@/types/type";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-// export const SERVER_URL = "https://cynderallabackend.onrender.com";
-export const SERVER_URL = "http://192.168.1.236:5000";
+export const SERVER_URL = "https://cynderallabackend-production.up.railway.app";
+// export const SERVER_URL = "http://192.168.1.236:5000";
 const baseUrl = `${SERVER_URL}/api/v1`;
 
 export const getToken = async (): Promise<string> => {
